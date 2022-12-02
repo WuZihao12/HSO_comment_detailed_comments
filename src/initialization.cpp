@@ -69,8 +69,10 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
   /*
   Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
 
+  frame_ref_:参考帧->初始化的第一帧
+  frame_cur：当前帧->初始化的第二帧
   初始化的时候，px_prev_和px_cur_应该是一样的
-  px_prev_:第一帧提取到的特征
+  px_ref_:第一帧提取到的特征
   px_cur_:第一帧提取到的特征
   f_ref_:第一帧提取特征的归一化3D坐标
   f_cur_：第一帧提取特征的归一化3D坐标
@@ -79,6 +81,8 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
   img_prev_：第一帧第0层图像金字塔（原始图）图像
   ftr_type_：第一帧提取到的特征的类型
   */
+
+  // HSO_INFO_STREAM("px_cur_size: "<<px_cur_.size() << "|| px_ref_size: "<<px_ref_.size());
   trackKlt(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_,
            disparities_, img_prev_, px_prev_, ftr_type_);
   // trackCandidate(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_, disparities_, img_prev_, px_prev_, ftr_type_);
@@ -226,6 +230,21 @@ void detectFeatures(FramePtr frame, vector<cv::Point2f> &px_vec, vector<Vector3d
   delete featureExt;
 }
 
+/*
+Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
+
+frame_ref_:参考帧->初始化的第一帧
+frame_cur：当前帧->初始化的第二帧
+初始化的时候，px_prev_和px_cur_应该是一样的
+px_ref_:第一帧提取到的特征
+px_cur_:第一帧提取到的特征
+f_ref_:第一帧提取特征的归一化3D坐标
+f_cur_：当前帧（第二帧）提取特征的归一化3D坐标
+
+disparities_:初始化第一帧和第二帧之间的视差
+img_prev_：第一帧第0层图像金字塔（原始图）图像
+ftr_type_：第一帧提取到的特征的类型
+*/
 void trackKlt(FramePtr frame_ref,
               FramePtr frame_cur,
               vector<cv::Point2f> &px_ref,
@@ -270,12 +289,17 @@ void trackKlt(FramePtr frame_ref,
   vector<Vector3d>::iterator f_ref_it = f_ref.begin();
   vector<Vector3d>::iterator fts_type_it = fts_type.begin();
 
+  // 清空当前帧提取到的特征的归一化3D坐标
   f_cur.clear();
   f_cur.reserve(px_cur.size());
+
+  // 清空视差容器
   disparities.clear();
   disparities.reserve(px_cur.size());
 
+  // 遍历参考帧(上一帧(初始化第一帧))下提取到的特征
   for (size_t i = 0; px_ref_it != px_ref.end(); ++i) {
+    // 如果光流跟踪失败 或
     if (!status[i] || !patchCheck(img_prev, frame_cur->img_pyr_[0], *px_pre_it, *px_cur_it)) {
       px_ref_it = px_ref.erase(px_ref_it);
       px_cur_it = px_cur.erase(px_cur_it);
