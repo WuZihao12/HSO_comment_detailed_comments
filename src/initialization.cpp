@@ -39,6 +39,9 @@ namespace initialization {
 // 处理第一帧
 // 如果提取到的点太少，则返回failure，某则返回success
 InitResult KltHomographyInit::addFirstFrame(FramePtr frame_ref) {
+
+/*  初始化第一帧提取到的特征
+  && frame_ref_*/
   reset();
 
   detectFeatures(frame_ref, px_ref_, f_ref_, ftr_type_);
@@ -52,6 +55,8 @@ InitResult KltHomographyInit::addFirstFrame(FramePtr frame_ref) {
   HSO_INFO_STREAM("Init: First Frame_f_ref_: " << f_ref_.size() << " features");
   frame_ref_ = frame_ref;
   px_cur_.insert(px_cur_.begin(), px_ref_.begin(), px_ref_.end());
+
+  // HSO_INFO_STREAM("px_cur_size: "<<px_cur_.size() << "|| px_ref_size: "<<px_ref_.size());
   img_prev_ = frame_ref_->img_pyr_[0].clone();
   px_prev_ = px_ref_;
 
@@ -61,7 +66,21 @@ InitResult KltHomographyInit::addFirstFrame(FramePtr frame_ref) {
 InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
   // detectCandidate(frame_cur, px_ref_, f_ref_, ftr_type_, false);
 
-  trackKlt(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_, disparities_, img_prev_, px_prev_, ftr_type_);
+  /*
+  Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
+
+  初始化的时候，px_prev_和px_cur_应该是一样的
+  px_prev_:第一帧提取到的特征
+  px_cur_:第一帧提取到的特征
+  f_ref_:第一帧提取特征的归一化3D坐标
+  f_cur_：第一帧提取特征的归一化3D坐标
+
+  disparities_:初始化第一帧和第二帧之间的视差
+  img_prev_：第一帧第0层图像金字塔（原始图）图像
+  ftr_type_：第一帧提取到的特征的类型
+  */
+  trackKlt(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_,
+           disparities_, img_prev_, px_prev_, ftr_type_);
   // trackCandidate(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_, disparities_, img_prev_, px_prev_, ftr_type_);
 
   HSO_INFO_STREAM("Init: KLT tracked " << disparities_.size() << " features");
@@ -217,12 +236,16 @@ void trackKlt(FramePtr frame_ref,
               cv::Mat &img_prev,
               vector<cv::Point2f> &px_prev,
               vector<Vector3d> &fts_type) {
-  const double klt_win_size = 30.0;
-  const int klt_max_iter = 30;
-  const double klt_eps = 0.0001;
+  const double klt_win_size = 30.0; // 每层金字塔的搜索窗口
+  const int klt_max_iter = 30; // 最大迭代次数
+  const double klt_eps = 0.0001; // 期望精度
   vector<unsigned char> status;
   vector<float> error;
+
+  // 指定迭代搜索算法的终止准则，通过cv::TermCriteria设置。此处要同时满足最大迭代次数和期望精度的要求
   cv::TermCriteria termcrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, klt_max_iter, klt_eps);
+
+  // cv::OPTFLOW_USE_INITIAL_FLOW：使用上帧速度作为光流速度。因为：通常在序列视频中，相邻帧运动方向具有相似性，故可以使用上帧速度场作为初始猜测。
   cv::calcOpticalFlowPyrLK(
       img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status, error,
       cv::Size2i(klt_win_size, klt_win_size), 4, termcrit, cv::OPTFLOW_USE_INITIAL_FLOW);

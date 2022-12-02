@@ -158,6 +158,7 @@ FrameHandlerMono::UpdateResult FrameHandlerMono::processFirstFrame() {
 
 // 系统处理第二帧
 FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame() {
+  // 送入第二帧
   initialization::InitResult res = klt_homography_init_.addSecondFrame(new_frame_);
 
   if (res == initialization::FAILURE)
