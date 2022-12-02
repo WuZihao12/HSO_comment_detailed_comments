@@ -122,9 +122,12 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
   new_frame_.reset();
 
   // finish processing
-/*   完成跟踪后执行的操作：
+
+   /*
+   完成跟踪后执行的操作：
    如果跟踪失败，就执行 重定位 或者 跟踪失败重启系统
-   以及提供了一些计算fps和跟踪质量的接口*/
+   同时，以及提供了一些计算fps和跟踪质量的接口
+   */
   finishFrameProcessingCommon(last_frame_->id_, res, last_frame_->m_n_inliers);
 }
 
