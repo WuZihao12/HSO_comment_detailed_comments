@@ -115,6 +115,7 @@ int FrameHandlerBase::finishFrameProcessingCommon(const size_t update_id,const U
   HSO_LOG(dropout);
 
   // save processing time to calculate fps
+  // 存储每一帧处理的时间，提供了总时间 以及 平均处理时间 的接口。来自vikit
   acc_frame_timings_.push_back(timer_.stop());
 
   if (stage_ == STAGE_DEFAULT_FRAME) {
