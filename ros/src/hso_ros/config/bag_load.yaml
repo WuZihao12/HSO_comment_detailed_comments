@@ -1,0 +1,31 @@
+%YAML:1.0
+
+
+#--------------------------------------------------------------------------------------------
+# run Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+bag_name: "MH05"
+calib_file: "calib=/home/wzh/Music/HSO/ros/src/hso_ros/config/cameras/euroc.txt"
+timestamp_file: "times=/home/wzh/Music/HSO/ros/src/hso_ros/config/timestamp/"
+output_name: "name="
+
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+imu_topic: "/imu"
+cam0_topic: "/cam0/image_raw"
+cam1_topic: "/cam1/image_raw"
+
+#--------------------------------------------------------------------------------------------
+# BAG_LOAD Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+File.version: "1.0"
+BAG_PATH: "/home/wzh/Documents/date_set/euroc/"
+BAG_START: 0.0
+
+#--------------------------------------------------------------------------------------------
+# Result Save Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+Save_Path: "/home/wzh/Music/HSO/ros/src/hso_ros/result"
+
