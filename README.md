@@ -117,14 +117,16 @@ If you use `single_sequence.sh` to run HSO, there are several commandline option
 
 ### Optional 
 - `start=X`: Start at frame X. The default is 0. HSO’s monocular initialization is weak. When the initialization fails or there is a problem with the initial scale, we recommend skipping some beginning frames (e.g., start=450 in MH04).
-
 - `end=X`  : End at frame X. The default is the number of the images the folder contains.
-
 - `times=X`: The timestamp file of the images. Its number of lines must be equal to the number of images in the folder. HSO now support 4 types of timestamp file format, please see the file `ImageReader.cpp`. The default is "None".
-
 - `name=X` : The file name of the result. The default is "KeyFrameTrajectory.txt".
 
-## 7. License
+## 7. Run code through ROS
+
+
+
+## 8. License
+
 The source code is released under a GPLv3 licence.
 
 If you use HSO in your academic work, please cite:
