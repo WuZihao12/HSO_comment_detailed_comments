@@ -116,10 +116,8 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
                           map_.getClosestKeyframe(last_frame_));
   }
 
-
-  // new_frame_ is current frame
-  // last_frame_ is last frame
   // set last frame
+  // 保存当前帧的信息，即当前帧变上一帧
   last_frame_ = new_frame_;
   new_frame_.reset();
 
@@ -152,6 +150,7 @@ FrameHandlerMono::UpdateResult FrameHandlerMono::processFirstFrame() {
 
 }
 
+// 系统处理第二帧
 FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame() {
   initialization::InitResult res = klt_homography_init_.addSecondFrame(new_frame_);
 

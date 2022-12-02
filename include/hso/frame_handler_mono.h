@@ -73,9 +73,9 @@ public:
 
   Reprojector reprojector_;                     //!< Projects points from other keyframes into the current frame
 
-  FramePtr new_frame_;                          //!< Current frame.
-  FramePtr last_frame_;                         //!< Last frame, not necessarily a keyframe.
-  FramePtr firstFrame_;
+  FramePtr new_frame_; // 当前帧                          //!< Current frame.
+  FramePtr last_frame_; // 上一帧，不一定是关键帧                        //!< Last frame, not necessarily a keyframe.
+  FramePtr firstFrame_; // 系统初始化时候的第一帧
 
   set<FramePtr> core_kfs_;                      //!< Keyframes in the closer neighbourhood.
   vector< pair<FramePtr,size_t> > overlap_kfs_; //!< All keyframes with overlapping field of view. the paired number specifies how many common mappoints are observed TODO: why vector!?

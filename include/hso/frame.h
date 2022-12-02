@@ -60,8 +60,8 @@ class Frame : boost::noncopyable {
   static int keyFrameCounter_;
 
   // Unique id of the frame.
-  int id_;
-  int keyFrameId_;
+  int id_; // 普通帧ID
+  int keyFrameId_; // 关键帧ID
 
   // Timestamp of when the image was recorded.
   double timestamp_;
@@ -73,7 +73,7 @@ class Frame : boost::noncopyable {
   hso::AbstractCamera *cam_;
 
   // Transform (f)rame from (w)orld.
-  Sophus::SE3 T_f_w_;
+  Sophus::SE3 T_f_w_; // 相机在世界坐标系下的刚体变换 T_fw
 
   // Covariance.
   Matrix<double, 6, 6> Cov_;
