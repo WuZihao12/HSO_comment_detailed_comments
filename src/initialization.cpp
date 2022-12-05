@@ -513,7 +513,6 @@ bool createPatch(const cv::Mat &img, const cv::Point2f &px, float *patch) {
   int ui = floorf(u);
   int vi = floorf(v);
 
-  // test
   if (ui < halfPatchSize || ui >= img.cols - halfPatchSize || vi < halfPatchSize || vi >= img.rows - halfPatchSize)
     return false;
 
