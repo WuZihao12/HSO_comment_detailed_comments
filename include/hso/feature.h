@@ -36,7 +36,7 @@ struct Feature {
   enum FeatureType { CORNER, EDGELET, GRADIENT };
 
   FeatureType type;     //!< Type can be corner or edgelet.
-  Frame *frame;         //!< Pointer to frame in which the feature was detected.
+  Frame *frame; // 表示该特征点是从哪一帧上提取的        //!< Pointer to frame in which the feature was detected.
   Vector2d px;          //!< Coordinates in pixels on pyramid level 0.
   Vector3d f;           //!< Unit-bearing vector（单位方向向量） of the feature.
   int level;            //!< Image pyramid level where feature was extracted.

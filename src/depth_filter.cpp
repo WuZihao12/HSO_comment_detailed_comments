@@ -255,9 +255,9 @@ void DepthFilter::updateSeedsLoop() {
           frame_queue_cond_.wait(lock);
         }
       } else {
+
         std::list<Seed>::iterator it = seeds_.begin();
         // it--;
-
         while (frame_queue_.empty() && !new_keyframe_set_ && it != seeds_.end()) {
           // 观测之前的普通帧用以加速地图点的收敛
           observeDepthWithPreviousFrameOnce(it);

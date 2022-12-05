@@ -45,6 +45,9 @@ struct Seed;
 /// point per cell. Thereby, we achieve a homogeneously distributed set of
 /// matched features and at the same time we can save processing time by not
 /// projecting all points.
+
+// 将地图中的点投影到图像中，找到对应的特征（角点）。 我们不会为每个点搜索匹配项，而是每个单元格只搜索一个点。
+// 因此，我们实现了一组均匀分布的匹配特征，同时我们可以通过不投影所有点来节省处理时间。
 class Reprojector
 {
 public:
@@ -52,7 +55,7 @@ public:
 
   /// Reprojector config parameters
   struct Options {
-    size_t max_n_kfs;   //!< max number of keyframes to reproject from
+    size_t max_n_kfs; // 最多投影关键帧的数量(这里设置的为10)   //!< max number of keyframes to reproject from
     bool find_match_direct;
     bool reproject_unconverged_seeds;
     float reproject_seed_thresh;
@@ -79,6 +82,7 @@ public:
 
   /// Project points from the map into the image. First finds keyframes with
   /// overlapping field of view and projects only those map-points.
+  // 将地图中的点投影到图像中。 首先找到具有重叠视野的关键帧并仅投影那些地图点。
   void reprojectMap(FramePtr frame, std::vector< std::pair<FramePtr,std::size_t> >& overlap_kfs);
   
 
@@ -116,7 +120,7 @@ private:
   {
     CandidateGrid cells;
     SeedGrid seeds;
-    vector<int> cell_order;
+    vector<int> cell_order; // 存储单元格的无序id
     int cell_size;
     int grid_n_cols;
     int grid_n_rows;

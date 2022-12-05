@@ -118,6 +118,7 @@ public:
   static double& imgImuDelay() { return getInstance().img_imu_delay; }
 
   /// Maximum number of features that should be tracked.
+  // 应该被跟踪的最大特征数量（这里设置的为200）
   static size_t& maxFts() { return getInstance().max_fts; }
 
   /// If the number of tracked features drops below this threshold. Tracking quality is bad.
