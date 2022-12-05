@@ -401,6 +401,7 @@ void FeatureExtractor::detect(
   needFeatures_ = nFeatures_ - extFeatures_;
 
   if (last_frame != nullptr) {
+    // 初始化完成之后才会进入这里
     m_egde_filter = true;
     m_last_frame = last_frame;
     findEpiHole();
@@ -423,7 +424,7 @@ void FeatureExtractor::detect(
   if (isInit_) {
     // gradDetectMT(frame->img_pyr_);
 
-    // 初始化的时候补充特征，这里才用fast_12-16来进行补充
+    // 初始化的时候补充特征，这里才用fast_12-16来进行补充,这里补充的特征类型为keyPoint.species == kGrad，即高梯度的点？
     fillingHole(frame->img_pyr_[0], 0);
   } else {
     edgeLetDetectMT(frame->img_pyr_);

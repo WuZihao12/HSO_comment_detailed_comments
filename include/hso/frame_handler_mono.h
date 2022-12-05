@@ -71,7 +71,7 @@ public:
 public:
   hso::AbstractCamera* cam_;                    //!< Camera model, can be ATAN, Pinhole or Ocam (see vikit).
 
-  Reprojector reprojector_;                     //!< Projects points from other keyframes into the current frame
+  Reprojector reprojector_; // 将其他关键帧的点投影到当前帧 //!< Projects points from other keyframes into the current frame
 
   FramePtr new_frame_; // 当前帧                          //!< Current frame.
   FramePtr last_frame_; // 上一帧，不一定是关键帧                        //!< Last frame, not necessarily a keyframe.

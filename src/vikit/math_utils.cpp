@@ -53,8 +53,7 @@ depthFromTriangulationExact(
   return true;
 }
 
-double
-reprojError(const Vector3d& f1,
+double reprojError(const Vector3d& f1,
             const Vector3d& f2,
             double error_multiplier2)
 {
@@ -62,8 +61,7 @@ reprojError(const Vector3d& f1,
   return error_multiplier2 * e.norm();
 }
 
-double
-computeInliers(const vector<Vector3d>& features1, // c1
+double computeInliers(const vector<Vector3d>& features1, // c1
                const vector<Vector3d>& features2, // c2
                const Matrix3d& R,                 // R_c1_c2
                const Vector3d& t,                 // c1_t

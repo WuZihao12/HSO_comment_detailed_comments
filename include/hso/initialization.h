@@ -76,6 +76,11 @@ class KltHomographyInit {
   InitializerType init_type_;       //!< initializer method. See options above.
   cv::Mat img_prev_;
   vector<cv::Point2f> px_prev_;
+  /*
+  ftr_type_[i][2]==0 -> 角点特征(CORNER)
+  ftr_type_[i][2]==1 -> 边缘特征(EDGELET)
+  ftr_type_[i][2]==2 -> GRADIENT
+  */
   vector<Vector3d> ftr_type_;
 };
 

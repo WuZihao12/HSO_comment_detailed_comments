@@ -112,7 +112,7 @@ public:
     // only for temp point
     bool isBad_;  
 
-    double idist_;
+    double idist_; // 地图点长度的倒数
     Feature* hostFeature_;
     VertexSBAPointID* vPoint_;
     size_t nBA_;

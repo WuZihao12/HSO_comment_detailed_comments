@@ -134,6 +134,11 @@ int FrameHandlerBase::finishFrameProcessingCommon(const size_t update_id,const U
   }
 #endif
 
+  /*
+  state_1: 跟踪失败 且 （初始化完成 或 处于 重定位状态）
+  state_2：跟踪失败 且 （处于初始化阶段 或 强制系统暂定）
+  state_3：重启标志位为true
+  */
   if (dropout == RESULT_FAILURE && (stage_ == STAGE_DEFAULT_FRAME || stage_ == STAGE_RELOCALIZING)) {
     stage_ = STAGE_RELOCALIZING;
     tracking_quality_ = TRACKING_INSUFFICIENT;

@@ -86,6 +86,7 @@ class Frame : boost::noncopyable {
   boost::mutex m_fts_mutex;
 
   // Five features and associated 3D points which are used to detect if two frames have overlapping field of view.
+  // 五个特征和关联的 3D 点，用于检测两个帧是否具有重叠的视野
   vector<Feature *> key_pts_;
 
   // Was this frames selected as keyframe?

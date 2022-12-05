@@ -59,7 +59,7 @@ FrameHandlerMono::FrameHandlerMono(hso::AbstractCamera *cam, bool _use_pc) :
 
 void FrameHandlerMono::initialize() {
   feature_detection::FeatureExtractor *featureExt =
-      new feature_detection::FeatureExtractor(cam_->width(),cam_->height(),Config::gridSize(),Config::nPyrLevels());
+      new feature_detection::FeatureExtractor(cam_->width(), cam_->height(), Config::gridSize(), Config::nPyrLevels());
 
   DepthFilter::callback_t
       depth_filter_cb = boost::bind(&MapPointCandidates::newCandidatePoint, &map_.point_candidates_, _1, _2);
@@ -77,8 +77,9 @@ FrameHandlerMono::~FrameHandlerMono() {
 
 //timestamp是img_id
 void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, string *timestamp_s) {
-  if (!startFrameProcessingCommon(timestamp))
+  if (!startFrameProcessingCommon(timestamp)) {
     return;
+  }
 
   // some cleanup from last iteration, can't do before because of visualization
   core_kfs_.clear();
@@ -87,6 +88,7 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
   // create new frame
   HSO_START_TIMER("pyramid_creation");
 
+  // 初始化当前帧
   new_frame_.reset(new Frame(cam_, img.clone(), timestamp));
 
   if (map_.size() == 0)
@@ -104,16 +106,13 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
   // process frame
   UpdateResult res = RESULT_FAILURE;
   if (stage_ == STAGE_DEFAULT_FRAME) {
-    res = processFrame();
-  } else if (stage_ == STAGE_SECOND_FRAME)
-  {
+    res = processFrame(); // 初始化完成后（即第一帧和第二帧均成功处理完毕）进行默认常规跟踪
+  } else if (stage_ == STAGE_SECOND_FRAME) {
     res = processSecondFrame(); // 如果第一帧成功处理完后，紧接着开始处理第二帧
-  } else if (stage_ == STAGE_FIRST_FRAME)
-  {
+  } else if (stage_ == STAGE_FIRST_FRAME) {
     res = processFirstFrame(); // 初始进入 STAGE_FIRST_FRAME ，即处理第一帧
   } else if (stage_ == STAGE_RELOCALIZING) {
-    res = relocalizeFrame(SE3(Matrix3d::Identity(), Vector3d::Zero()),
-                          map_.getClosestKeyframe(last_frame_));
+    res = relocalizeFrame(SE3(Matrix3d::Identity(), Vector3d::Zero()),map_.getClosestKeyframe(last_frame_));
   }
 
   // set last frame
@@ -123,11 +122,11 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
 
   // finish processing
 
-   /*
-   完成跟踪后执行的操作：
-   如果跟踪失败，就执行 重定位 或者 跟踪失败重启系统
-   同时，以及提供了一些计算fps和跟踪质量的接口
-   */
+  /*
+  完成跟踪后执行的操作：
+  如果跟踪失败，就执行 重定位 或者 跟踪失败重启系统
+  同时，以及提供了一些计算fps和跟踪质量的接口
+  */
   finishFrameProcessingCommon(last_frame_->id_, res, last_frame_->m_n_inliers);
 }
 
@@ -136,6 +135,7 @@ state_1: 提取到的特征太少直接返回 RESULT_NO_KEYFRAME
 state_2: 如果提取到的特征满足要求，就将第一帧设置为关键帧，并添加到地图中，返回 RESULT_IS_KEYFRAME
 */
 FrameHandlerMono::UpdateResult FrameHandlerMono::processFirstFrame() {
+  // TODO：第一帧在世界坐标系下的刚体变换为单位矩阵
   new_frame_->T_f_w_ = SE3(Matrix3d::Identity(), Vector3d::Zero());
 
   if (klt_homography_init_.addFirstFrame(new_frame_) == initialization::FAILURE) {
@@ -161,13 +161,15 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame() {
   // 送入第二帧
   initialization::InitResult res = klt_homography_init_.addSecondFrame(new_frame_);
 
-  if (res == initialization::FAILURE)
+  if (res == initialization::FAILURE) {
     return RESULT_FAILURE;
-  else if (res == initialization::NO_KEYFRAME)
+  } else if (res == initialization::NO_KEYFRAME) {
     return RESULT_NO_KEYFRAME;
+  }
 
+  // 直到完成初始化，跟踪（stage_）进入常规默认跟踪的阶段
   stage_ = STAGE_DEFAULT_FRAME;
-  klt_homography_init_.reset();
+  klt_homography_init_.reset(); // 初始化系统的初始化器
   HSO_INFO_STREAM("Init: Selected second frame, triangulated initial map.");
 
   afterInit_ = true;
@@ -177,19 +179,27 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame() {
 
 FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   // Set initial pose
+  // motionModel_：运动模型被初始化为单位阵
   new_frame_->T_f_w_ = motionModel_ * last_frame_->T_f_w_;
   // calcMotionModel();
 
+  // 初始化完成后afterInit_=true,将第一帧信息 传递给 上一帧
   if (afterInit_) last_frame_ = firstFrame_;
 
   new_frame_->m_last_frame = last_frame_;
 
+  /*
+  Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
+  state_1: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 > 0.5
+  state_2: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 <= 0.5
+  */
   if (new_frame_->gradMean_ > last_frame_->gradMean_ + 0.5) {
     //HSO_DEBUG_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
     boost::timer align;
     HSO_START_TIMER("sparse_img_align");
 
-    CoarseTracker Tracker(false, Config::kltMaxLevel(), Config::kltMinLevel() + 1, 50, false);
+    // Config::kltMaxLevel()为4，Config::kltMaxLevel()为0
+    CoarseTracker Tracker(false, Config::kltMaxLevel(), Config::kltMaxLevel() + 1, 50, false);
     size_t img_align_n_tracked = Tracker.run(last_frame_, new_frame_);
 
     HSO_STOP_TIMER("sparse_img_align");

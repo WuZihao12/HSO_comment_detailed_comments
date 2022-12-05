@@ -81,7 +81,7 @@ void Frame::initFrame(const cv::Mat &img) {
         "Frame: provided image has not the same size as the camera model or image is not grayscale");
 
   // Set keypoints to NULL
-  std::for_each(key_pts_.begin(), key_pts_.end(), [&](Feature *ftr) { ftr = NULL; });
+  std::for_each(key_pts_.begin(), key_pts_.end(), [&](Feature *ftr) { ftr = nullptr; });
 
   // Build Image Pyramid
   // 建立图像金字塔
@@ -113,9 +113,9 @@ void Frame::getFeaturesCopy(Features &list_copy) {
 void Frame::setKeyPoints() // thread safe
 {
   for (size_t i = 0; i < 5; ++i)
-    if (key_pts_[i] != NULL)
-      if (key_pts_[i]->point == NULL)
-        key_pts_[i] = NULL;
+    if (key_pts_[i] != nullptr)
+      if (key_pts_[i]->point == nullptr)
+        key_pts_[i] = nullptr;
 
   std::for_each(fts_.begin(), fts_.end(), [&](Feature *ftr) { if (ftr->point != nullptr) checkKeyPoints(ftr); });
 }
@@ -126,14 +126,14 @@ void Frame::checkKeyPoints(Feature *ftr) {
   const Vector2d uv = ftr->px;
 
   // center point
-  if (key_pts_[0] == NULL)
+  if (key_pts_[0] == nullptr)
     key_pts_[0] = ftr;
   else if (std::max(std::fabs(ftr->px[0] - cu), std::fabs(ftr->px[1] - cv))
       < std::max(std::fabs(key_pts_[0]->px[0] - cu), std::fabs(key_pts_[0]->px[1] - cv)))
     key_pts_[0] = ftr;
   // right dn
   if (uv[0] >= cu && uv[1] >= cv) {
-    if (key_pts_[1] == NULL)
+    if (key_pts_[1] == nullptr)
       key_pts_[1] = ftr;
     else if ((uv[0] - cu) * (uv[1] - cv)
         > (key_pts_[1]->px[0] - cu) * (key_pts_[1]->px[1] - cv))
@@ -141,7 +141,7 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // right up
   if (uv[0] >= cu && uv[1] < cv) {
-    if (key_pts_[2] == NULL)
+    if (key_pts_[2] == nullptr)
       key_pts_[2] = ftr;
     else if ((uv[0] - cu) * -(uv[1] - cv)
         > (key_pts_[2]->px[0] - cu) * -(key_pts_[2]->px[1] - cv))
@@ -149,7 +149,7 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // left dn
   if (uv[0] < cu && uv[1] >= cv) {
-    if (key_pts_[3] == NULL)
+    if (key_pts_[3] == nullptr)
       key_pts_[3] = ftr;
     else if (-(uv[0] - cu) * (uv[1] - cv)
         > -(key_pts_[3]->px[0] - cu) * (key_pts_[3]->px[1] - cv))
@@ -157,7 +157,7 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // left up
   if (uv[0] < cu && uv[1] < cv) {
-    if (key_pts_[4] == NULL)
+    if (key_pts_[4] == nullptr)
       key_pts_[4] = ftr;
     else if (-(uv[0] - cu) * -(uv[1] - cv)
         > -(key_pts_[4]->px[0] - cu) * -(key_pts_[4]->px[1] - cv))

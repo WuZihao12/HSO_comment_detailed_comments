@@ -89,14 +89,17 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
 
   HSO_INFO_STREAM("Init: KLT tracked " << disparities_.size() << " features");
 
+  // 初始化跟踪到的特征点数量太小则宣布跟踪失败（这里设置的阈值为50）
   if (disparities_.size() < Config::initMinTracked())
     return FAILURE;
 
   double disparity = hso::getMedian(disparities_);
+  // 初始化跟踪到的特征点的视差太小则返回（这里设置的视差阈值是40，即要保证初始化两帧具有足够的基线长度）
   HSO_INFO_STREAM("Init: KLT " << disparity << "px average disparity.");
   if (disparity < Config::initMinDisparity())
     return NO_KEYFRAME;
 
+  // 比较单应矩阵 和 本质矩阵 的内点数（得分系数）来选择初始化方式
   computeInitializeMatrix(
       f_ref_, f_cur_, frame_ref_->cam_->errorMultiplier2(),
       Config::poseOptimThresh(), inliers_, xyz_in_cur_, T_cur_from_ref_);
@@ -105,18 +108,24 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
   //     Config::poseOptimThresh(), inliers_, xyz_in_cur_, T_cur_from_ref_);
 
 
+  // 初始化化后的内点数小于40，则初始化失败，返回 failure
   if (inliers_.size() < Config::initMinInliers()) {
     HSO_WARN_STREAM("Init WARNING: " << Config::initMinInliers() << " inliers minimum required.");
     return FAILURE;
   }
 
   // Rescale the map such that the mean scene depth is equal to the specified scale
+  // 重新缩放地图，使平均场景深度等于指定比例
   vector<double> depth_vec;
   for (size_t i = 0; i < xyz_in_cur_.size(); ++i)
     depth_vec.push_back((xyz_in_cur_[i]).z());
   double scene_depth_median = hso::getMedian(depth_vec);
+
+  // Config::mapScale()设置的为1，这样得到的scale就是场景中值的逆深度
   double scale = Config::mapScale() / scene_depth_median;
 
+  // 根据本质矩阵或单应矩阵的结果，得到当前帧在世界坐标系下的刚体变换
+  // 这里作者采用对初始两帧的平移向量t归一化作为后续的单位，从而解决单目slam\单目vo的尺度问题
   frame_cur->T_f_w_ = T_cur_from_ref_ * frame_ref_->T_f_w_;
   frame_cur->T_f_w_.translation() =
       -frame_cur->T_f_w_.rotation_matrix() * (frame_ref_->pos() + scale * (frame_cur->pos() - frame_ref_->pos()));
@@ -124,6 +133,7 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
   // For each inlier create 3D point and add feature in both frames
   SE3 T_world_cur = frame_cur->T_f_w_.inverse();
 
+  // inliers_存储的是内点特征点的id
   for (vector<int>::iterator it = inliers_.begin(); it != inliers_.end(); ++it) {
     Vector2d px_cur(px_cur_[*it].x, px_cur_[*it].y);
     Vector2d px_ref(px_ref_[*it].x, px_ref_[*it].y);
@@ -134,13 +144,20 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
     // Vector2d px_ref(vFinalPxRef_[id].x, vFinalPxRef_[id].y);
     // int type = vFinalType_[id];
 
+    // 选择初始化两帧内点特征点在图像有效范围内 且 三角化正确的点
     if (frame_ref_->cam_->isInFrame(px_cur.cast<int>(), 10) && frame_ref_->cam_->isInFrame(px_ref.cast<int>(), 10)
         && xyz_in_cur_[*it].z() > 0) {
+      // 将当前帧坐标系下的地图点转换为世界坐标系下，并对采用逆场景深度中值初始化地图点。
       Vector3d pos = T_world_cur * (xyz_in_cur_[*it] * scale);
       Point *new_point = new Point(pos);
 
       new_point->idist_ = 1.0 / pos.norm();
 
+      /*
+      ftr_type_[i][2]==0 -> 角点特征(CORNER)
+      ftr_type_[i][2]==1 -> 边缘特征(EDGELET)
+      ftr_type_[i][2]==2 -> GRADIENT
+      */
       if (fts_type[2] == 0) {
         new_point->ftr_type_ = Point::FEATURE_CORNER;
         Feature *ftr_cur(new Feature(frame_cur.get(), new_point, px_cur, f_cur_[*it], 0));
@@ -149,10 +166,13 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
         Feature *ftr_ref(new Feature(frame_ref_.get(), new_point, px_ref, f_ref_[*it], 0));
         frame_ref_->addFeature(ftr_ref);
 
+        // 对该地图点添加2D观测特征（首先观测到该地图点的帧下的特征）
         new_point->addFrameRef(ftr_ref);
         // new_point->addFrameRef(ftr_cur);
+        // 对该地图点添加宿主特征
         new_point->hostFeature_ = ftr_ref;
       } else if (fts_type[2] == 1) {
+        // TODO:初始化的时候没有提取边特征，所以fts_type[2] == 1的部分并没有执行
         new_point->ftr_type_ = Point::FEATURE_EDGELET;
 
         Vector2d grad(fts_type[0], fts_type[1]);
@@ -231,7 +251,6 @@ void detectFeatures(FramePtr frame, vector<cv::Point2f> &px_vec, vector<Vector3d
 }
 
 /*
-Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
 
 frame_ref_:参考帧->初始化的第一帧
 frame_cur：当前帧->初始化的第二帧
@@ -239,7 +258,7 @@ frame_cur：当前帧->初始化的第二帧
 px_ref_:第一帧提取到的特征
 px_cur_:第一帧提取到的特征
 f_ref_:第一帧提取特征的归一化3D坐标
-f_cur_：当前帧（第二帧）提取特征的归一化3D坐标
+f_cur_：当前帧（第二帧）下的特征的归一化3D坐标
 
 disparities_:初始化第一帧和第二帧之间的视差
 img_prev_：第一帧第0层图像金字塔（原始图）图像
@@ -269,17 +288,18 @@ void trackKlt(FramePtr frame_ref,
       img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status, error,
       cv::Size2i(klt_win_size, klt_win_size), 4, termcrit, cv::OPTFLOW_USE_INITIAL_FLOW);
 
-  // std::vector<int> status; status.resize(px_prev.size(), 1);
-  // if(img_prev.cols > 1000 && img_prev.rows > 1000)
-  // {
-  //     GainRobustTracker tracker(4,5);
-  //     tracker.trackImagePyramids(img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status);
-  // }
-  // else
-  // {
-  //     GainRobustTracker tracker(4,4);
-  //     tracker.trackImagePyramids(img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status);
-  // }
+/*  std::vector<int> status; status.resize(px_prev.size(), 1);
+  if(img_prev.cols > 1000 && img_prev.rows > 1000)
+  {
+      // TUM 在线光度标定里面的
+      GainRobustTracker tracker(4,5);
+      tracker.trackImagePyramids(img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status);
+  }
+  else
+  {
+      GainRobustTracker tracker(4,4);
+      tracker.trackImagePyramids(img_prev, frame_cur->img_pyr_[0], px_prev, px_cur, status);
+  }*/
 
 
   vector<cv::Point2f>::iterator px_ref_it = px_ref.begin();
@@ -299,7 +319,7 @@ void trackKlt(FramePtr frame_ref,
 
   // 遍历参考帧(上一帧(初始化第一帧))下提取到的特征
   for (size_t i = 0; px_ref_it != px_ref.end(); ++i) {
-    // 如果光流跟踪失败 或
+    // 如果光流跟踪失败 或 该特征点在最底层图像中太靠近边缘->无法创建patch/residual pattern，那么就将该特征点剔除
     if (!status[i] || !patchCheck(img_prev, frame_cur->img_pyr_[0], *px_pre_it, *px_cur_it)) {
       px_ref_it = px_ref.erase(px_ref_it);
       px_cur_it = px_cur.erase(px_cur_it);
@@ -311,6 +331,7 @@ void trackKlt(FramePtr frame_ref,
       continue;
     }
 
+    // 当前帧（第二帧）下的特征的归一化3D坐标
     f_cur.push_back(frame_cur->c2f(px_cur_it->x, px_cur_it->y));
     disparities.push_back(Vector2d(px_ref_it->x - px_cur_it->x, px_ref_it->y - px_cur_it->y).norm());
 
@@ -322,6 +343,7 @@ void trackKlt(FramePtr frame_ref,
     ++px_pre_it;
   }
 
+  // 保存当前帧的信息，即当前帧特征 变成 上一帧特征
   img_prev = frame_cur->img_pyr_[0].clone();
   px_prev = px_cur;
 
@@ -503,6 +525,9 @@ bool patchCheck(
   return checkSSD(patch_pre, patch_cur);
 }
 
+// img:输入图像
+// px：输入图像中特征点坐标
+// patch：residual pattern？
 bool createPatch(const cv::Mat &img, const cv::Point2f &px, float *patch) {
   const int halfPatchSize = 4;
   const int patchSize = halfPatchSize * 2;
@@ -510,9 +535,10 @@ bool createPatch(const cv::Mat &img, const cv::Point2f &px, float *patch) {
 
   float u = px.x;
   float v = px.y;
-  int ui = floorf(u);
-  int vi = floorf(v);
+  int ui = floorf(u); // 向下取整
+  int vi = floorf(v); // 向下取整
 
+  // 如果特征点坐标太靠近图像边界（4个像素以内），那么就无法围绕该特征点创建一个pattern，则返回false
   if (ui < halfPatchSize || ui >= img.cols - halfPatchSize || vi < halfPatchSize || vi >= img.rows - halfPatchSize)
     return false;
 
@@ -564,11 +590,13 @@ bool checkSSD(float *patch1, float *patch2) {
 
   float numerator = 0, demoniator1 = 0, demoniator2 = 0;
   for (int i = 0; i < patchArea; i++) {
-    numerator += (patch1[i] - mean1) * (patch2[i] - mean2);
-    demoniator1 += (patch1[i] - mean1) * (patch1[i] - mean1);
-    demoniator2 += (patch2[i] - mean2) * (patch2[i] - mean2);
+    numerator += (patch1[i] - mean1) * (patch2[i] - mean2); // 协方差
+    demoniator1 += (patch1[i] - mean1) * (patch1[i] - mean1); // 方差
+    demoniator2 += (patch2[i] - mean2) * (patch2[i] - mean2); // 方差
   }
 
+  // 相关系数
+  // 检查被当前帧跟踪到的特征点 和 上一帧中的该点是否具有相关性
   return numerator / (sqrt(demoniator1 * demoniator2) + 1e-12) > threshold;
 }
 
