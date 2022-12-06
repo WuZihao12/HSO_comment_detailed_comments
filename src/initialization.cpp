@@ -151,6 +151,7 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur) {
       Vector3d pos = T_world_cur * (xyz_in_cur_[*it] * scale);
       Point *new_point = new Point(pos);
 
+      // idist_为地图点模长的倒数
       new_point->idist_ = 1.0 / pos.norm();
 
       /*
@@ -542,6 +543,7 @@ bool createPatch(const cv::Mat &img, const cv::Point2f &px, float *patch) {
   if (ui < halfPatchSize || ui >= img.cols - halfPatchSize || vi < halfPatchSize || vi >= img.rows - halfPatchSize)
     return false;
 
+  // 双线性插值
   float subpix_u = u - ui;
   float subpix_v = v - vi;
   float w_ref_tl = (1.0 - subpix_u) * (1.0 - subpix_v);
@@ -550,11 +552,14 @@ bool createPatch(const cv::Mat &img, const cv::Point2f &px, float *patch) {
   float w_ref_br = subpix_u * subpix_v;
 
   float *patch_ptr = patch;
+
+  // patch的行循环
   for (int y = 0; y < patchSize; ++y) {
-    uint8_t *cur_patch_ptr = img.data + (vi - halfPatchSize + y) * stride + (ui - halfPatchSize);
-    for (int x = 0; x < patchSize; ++x, ++patch_ptr, ++cur_patch_ptr)
-      *patch_ptr = w_ref_tl * cur_patch_ptr[0] + w_ref_tr * cur_patch_ptr[1] +
-          w_ref_bl * cur_patch_ptr[stride] + w_ref_br * cur_patch_ptr[stride + 1];
+    uint8_t *cur_patch_ptr = img.data + (vi - halfPatchSize + y) * stride + (ui - halfPatchSize); // patch的整数级像素指针
+    for (int x = 0; x < patchSize; ++x, ++patch_ptr, ++cur_patch_ptr) {
+      *patch_ptr = w_ref_tl * cur_patch_ptr[0] + w_ref_tr * cur_patch_ptr[1] + w_ref_bl * cur_patch_ptr[stride]
+          + w_ref_br * cur_patch_ptr[stride + 1];  // 插值得到
+    }
   }
 
   return true;

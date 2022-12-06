@@ -59,7 +59,8 @@ public:
     //!< Unique ID of the point.           
     int id_;
 
-    //!< 3d pos of the point in the world coordinate frame.                 
+    //!< 3d pos of the point in the world coordinate frame.
+    // 世界坐标系下的3D坐标
     Vector3d pos_;
 
     //!< Surface normal at point.                     
@@ -112,8 +113,8 @@ public:
     // only for temp point
     bool isBad_;  
 
-    double idist_; // 地图点长度的倒数
-    Feature* hostFeature_;
+    double idist_; // 地图点模长的倒数
+    Feature* hostFeature_; // 地图点的宿主特征，即最先观测到该地图点的2D特征（宿主特征也就相当于最先于该地图点相对应的2D特征）
     VertexSBAPointID* vPoint_;
     size_t nBA_;
 

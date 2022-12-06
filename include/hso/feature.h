@@ -40,7 +40,7 @@ struct Feature {
   Vector2d px;          //!< Coordinates in pixels on pyramid level 0.
   Vector3d f;           //!< Unit-bearing vector（单位方向向量） of the feature.
   int level;            //!< Image pyramid level where feature was extracted.
-  Point *point;         //!< Pointer to 3D point which corresponds to the feature.
+  Point *point; // 特征对应的地图点        //!< Pointer to 3D point which corresponds to the feature.
   Vector2d grad;        //!< Dominant gradient direction for edglets, normalized（归一化）.
 
   // used in photometric calibration thread, 这些变量不应该在前端被使用
@@ -48,8 +48,8 @@ struct Feature {
   vector<double> radiances;
   vector<double> outputs_grad;
   vector<double> rad_mean;
-  Feature *m_prev_feature = NULL;
-  Feature *m_next_feature = NULL;
+  Feature *m_prev_feature = nullptr;
+  Feature *m_next_feature = nullptr;
   bool m_added = false;  // Flag, used in photomatric calibration
   // bool m_is_seed = false;
   bool m_non_point = false;
@@ -62,7 +62,7 @@ struct Feature {
       px(_px),
       f(frame->cam_->cam2world(px)),
       level(_level),
-      point(NULL),
+      point(nullptr),
       grad(1.0, 0.0) {
   }
 
@@ -72,7 +72,7 @@ struct Feature {
       px(_px),
       f(_f),
       level(_level),
-      point(NULL),
+      point(nullptr),
       grad(1.0, 0.0) {
   }
 
@@ -93,7 +93,7 @@ struct Feature {
       px(_px),
       f(frame->cam_->cam2world(px)),
       level(_level),
-      point(NULL),
+      point(nullptr),
       grad(_grad) {
   }
 
@@ -114,7 +114,7 @@ struct Feature {
       px(_px),
       f(frame->cam_->cam2world(px)),
       level(_level),
-      point(NULL),
+      point(nullptr),
       grad(1.0, 0.0) {
   }
 
