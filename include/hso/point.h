@@ -44,6 +44,14 @@ class VertexSBAPointID;
 
 typedef Matrix<double, 2, 3> Matrix23d;
 
+/********************************
+ * @ function: 管理3D点的类，就是MapPoint
+ *              构造函数
+ * @ param:    pos   该3D点坐标
+ *
+ * @ note:
+ *******************************/
+
 /// A 3D point on the surface of the scene.
 class Point : boost::noncopyable
 {
@@ -57,26 +65,26 @@ public:
     static int point_counter_;
 
     //!< Unique ID of the point.           
-    int id_;
+    int id_; //3D点的ID
 
     //!< 3d pos of the point in the world coordinate frame.
     // 世界坐标系下的3D坐标
-    Vector3d pos_;
+    Vector3d pos_; //3D点的世界坐标
 
     //!< Surface normal at point.                     
-    Vector3d normal_; 
+    Vector3d normal_;
 
     //!< Inverse covariance matrix of normal estimation.                 
     Matrix3d normal_information_;
 
     //!< Flag whether the surface normal was estimated or not.      
-    bool normal_set_;
+    bool normal_set_; //是否估计表面法向量
 
     //!< References to keyframes which observe the point.
-    list<Feature*> obs_;
+    list<Feature*> obs_; // 用于记录该点的观测帧，以特征的形式表示
 
-    //!< Number of obervations: Keyframes AND successful reprojections in intermediate frames.                     
-    size_t n_obs_;
+    //!< Number of obervations: Keyframes AND successful reprojections in intermediate(中间的) frames.
+    size_t n_obs_; //能观测该点的帧数，包括关键帧和成功投影的帧
 
     //!< Temporary pointer to the point-vertex in g2o during bundle adjustment.
     g2oPoint* v_pt_;

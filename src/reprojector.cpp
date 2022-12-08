@@ -290,6 +290,7 @@ void Reprojector::reprojectMap(
     reprojectCellAll(allPixelToDistribute, frame);
   } else {
     // 1st
+    // 随机选择网格进行对齐，网格中只要有一个特征点匹配成功即可，超过一点数量则匹配成功
     for (size_t i = 0; i < grid_.cells.size(); ++i) {
       // we prefer good quality points over unkown quality (more likely to match)
       // and unknown quality over candidates (position not optimized)
@@ -346,6 +347,8 @@ void Reprojector::reprojectMap(
 
 bool Reprojector::pointQualityComparator(Candidate &lhs, Candidate &rhs) {
 
+  // state_1:特征点的质量不一样时，高质量的点在前面
+  // state_2:特征点的质量一样时，按照 角点>边缘点>梯度点 的顺序排列
   if (lhs.pt->type_ != rhs.pt->type_)
     return (lhs.pt->type_ > rhs.pt->type_);
   else {
@@ -360,8 +363,10 @@ bool Reprojector::seedComparator(SeedCandidate &lhs, SeedCandidate &rhs) {
 }
 
 bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is_3rd) {
+
   if (cell.empty()) return false;
 
+  // 在网格内，按照点的质量排序，优先使用优质点
   if (!is_2nd)
     cell.sort(boost::bind(&Reprojector::pointQualityComparator, _1, _2));
 
@@ -372,11 +377,13 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
   while (it != cell.end()) {
     ++n_trials_;
 
+    // 如果是删除的点，则从cell去掉
     if (it->pt->type_ == Point::TYPE_DELETED) {
       it = cell.erase(it);
       continue;
     }
 
+    // 定义了直接找的方法
     if (!matcher_.findMatchDirect(*it->pt, *frame, it->px)) {
       it->pt->n_failed_reproj_++;
       if (it->pt->type_ == Point::TYPE_UNKNOWN && it->pt->n_failed_reproj_ > 15)
