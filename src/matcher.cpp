@@ -272,7 +272,7 @@ void Matcher::createPatchFromPatchWithBorder() {
  *******************************/
 bool Matcher::findMatchDirect(const Point &pt, Frame &cur_frame, Vector2d &px_cur) {
 
-  // 找到与点pt对应的, 离当前帧最近的帧上的的特征ref_ftr
+  // 找到与点 pt 对应的, 离当前帧最近的帧上的的特征ref_ftr
   if (!pt.getCloseViewObs(cur_frame.pos(), ref_ftr_)) {
     // // Try nonkeyframe
     // if(pt.last_obs_keyframeId_ == cur_frame.keyFrameId_)
@@ -305,9 +305,10 @@ bool Matcher::findMatchDirect(const Point &pt, Frame &cur_frame, Vector2d &px_cu
         *ref_ftr_->frame->cam_, *cur_frame.cam_, ref_ftr_->px, ref_ftr_->f,
         (ref_ftr_->frame->pos() - pt.pos_).norm(), T_c_r, ref_ftr_->level, A_cur_ref_);
   }
-
+  // 找到cur_frame最合适的搜索的金字塔层
   search_level_ = warp::getBestSearchLevel(A_cur_ref_, Config::nPyrLevels() - 1);
 
+  // 利用 A_cur_ref 将ref变换到 patch_with_border_f_temp 上, 得到的是search_level层上的patch
   float patch_with_border_f_temp[(patch_size_ + 2) * (patch_size_ + 2)];
   warp::warpAffine(
       A_cur_ref_, ref_ftr_->frame->img_pyr_[ref_ftr_->level], ref_ftr_->px,
@@ -315,6 +316,7 @@ bool Matcher::findMatchDirect(const Point &pt, Frame &cur_frame, Vector2d &px_cu
 
   const int patchWithBorderArea = (patch_size_ + 2) * (patch_size_ + 2);
   if (cur_frame.keyFrameId_ - ref_ftr_->frame->keyFrameId_ < 4) {
+    // exposure_rat：当前帧和参考帧曝光时间的比率
     float exposure_rat = cur_frame.m_exposure_time / ref_ftr_->frame->m_exposure_time;
     if (fabsf(exposure_rat * 128 - 128) > LIGHT_THRESHOLD) {
       float *patch_ptr = patch_with_border_f_;

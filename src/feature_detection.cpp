@@ -427,6 +427,7 @@ void FeatureExtractor::detect(
     // 初始化的时候补充特征，这里才用fast_12-16来进行补充,这里补充的特征类型为keyPoint.species == kGrad，即高梯度的点？
     fillingHole(frame->img_pyr_[0], 0);
   } else {
+    // 边缘特征提取
     edgeLetDetectMT(frame->img_pyr_);
     // fillingHole(frame->img_pyr_[0], 0);
     // fillingHole(frame->img_pyr_[1], 1);
@@ -706,6 +707,7 @@ void FeatureExtractor::edgeLetDetectMT(const ImgPyr &img_pyr) {
   else {
     assert(nLevels_ == 3);
 
+    // 除了初始化，使用三层图像金字塔跟踪，开启多线程同时提取三层金字塔的边缘特征
     std::thread thread0(&FeatureExtractor::edgeLetDetectST, this, std::ref(img_pyr[0]), 0);
     std::thread thread1(&FeatureExtractor::edgeLetDetectST, this, std::ref(img_pyr[1]), 1);
     std::thread thread2(&FeatureExtractor::edgeLetDetectST, this, std::ref(img_pyr[2]), 2);

@@ -94,8 +94,10 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
   if (map_.size() == 0)
     // 第一个关键帧的id是0
     new_frame_->keyFrameId_ = 0;
-  else
+  else {
+    // 返回地图中最新关键帧的ID，最新关键帧->距离当前帧最近的关键帧
     new_frame_->keyFrameId_ = map_.lastKeyframe()->keyFrameId_;
+  }
 
   if (timestamp_s != NULL) new_frame_->m_timestamp_s = *timestamp_s;
 
@@ -112,7 +114,7 @@ void FrameHandlerMono::addImage(const cv::Mat &img, const double timestamp, stri
   } else if (stage_ == STAGE_FIRST_FRAME) {
     res = processFirstFrame(); // 初始进入 STAGE_FIRST_FRAME ，即处理第一帧
   } else if (stage_ == STAGE_RELOCALIZING) {
-    res = relocalizeFrame(SE3(Matrix3d::Identity(), Vector3d::Zero()),map_.getClosestKeyframe(last_frame_));
+    res = relocalizeFrame(SE3(Matrix3d::Identity(), Vector3d::Zero()), map_.getClosestKeyframe(last_frame_));
   }
 
   // set last frame
@@ -193,25 +195,32 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   state_1: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 > 0.5
   state_2: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 <= 0.5
   */
+  // 初始 位姿估计以及曝光时间获取
   if (new_frame_->gradMean_ > last_frame_->gradMean_ + 0.5) {
     //HSO_DEBUG_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
+    HSO_INFO_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
     boost::timer align;
     HSO_START_TIMER("sparse_img_align");
 
     // Config::kltMaxLevel()为4，Config::kltMaxLevel()为0
     CoarseTracker Tracker(false, Config::kltMaxLevel(), Config::kltMaxLevel() + 1, 50, false);
-    size_t img_align_n_tracked = Tracker.run(last_frame_, new_frame_);
+
+    // size_t img_align_n_tracked = Tracker.run(last_frame_, new_frame_); // origin_code
+    Tracker.run(last_frame_, new_frame_);
 
     HSO_STOP_TIMER("sparse_img_align");
     HSO_LOG(img_align_n_tracked);
     HSO_DEBUG_STREAM("Img Align:\t Tracked = " << img_align_n_tracked << "\t \t Cost = " << align.elapsed() << "s");
   } else {
     // HSO_DEBUG_STREAM("Img Align:\t Using The Inverse Compositional Algorithm.");
+    HSO_INFO_STREAM("Img Align:\t Using The Inverse Compositional Algorithm.")
     boost::timer align;
     HSO_START_TIMER("sparse_img_align");
 
     CoarseTracker Tracker(true, Config::kltMaxLevel(), Config::kltMinLevel() + 1, 50, false);
-    size_t img_align_n_tracked = Tracker.run(last_frame_, new_frame_);
+
+    // size_t img_align_n_tracked = Tracker.run(last_frame_, new_frame_); // origin_code
+    Tracker.run(last_frame_, new_frame_);
 
     HSO_STOP_TIMER("sparse_img_align");
     HSO_LOG(img_align_n_tracked);

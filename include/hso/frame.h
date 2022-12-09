@@ -79,6 +79,7 @@ class Frame : boost::noncopyable {
   Matrix<double, 6, 6> Cov_;
 
   // Image Pyramid.
+  // 图像金字塔
   ImgPyr img_pyr_;
 
   // List of features in the image.
@@ -186,8 +187,8 @@ class Frame : boost::noncopyable {
   /// Return the pose of the frame in the (w)orld coordinate frame.
   inline Vector3d pos() const { return T_f_w_.inverse().translation(); }
 
-  /// Frame jacobian for projection of 3D point in (f)rame coordinate to
-  /// unit plane coordinates uv (focal length = 1).
+  /// Frame jacobian for projection of 3D point in (f)rame coordinate to unit plane coordinates uv (focal length = 1).
+  /// 定义了一个焦距为1的成像平面
   inline static void jacobian_xyz2uv(const Vector3d &xyz_in_f, Matrix<double, 2, 6> &J) {
     const double x = xyz_in_f[0];
     const double y = xyz_in_f[1];

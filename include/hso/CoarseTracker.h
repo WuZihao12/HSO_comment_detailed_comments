@@ -170,6 +170,7 @@ private:
 	std::vector<bool> m_visible_fts;
 	cv::Mat m_ref_patch_cache;
 
+	// ColMajor列优先存储  Dynamic—>动态列
 	Matrix<double, 6, Dynamic, ColMajor> m_jacobian_cache_true;
     Matrix<double, 6, Dynamic, ColMajor> m_jacobian_cache_raw;
 
@@ -178,7 +179,7 @@ private:
     std::vector<double> m_buf_weight;
     std::vector<double> m_buf_error;
 
-    std::vector<double> m_pt_ref;
+    std::vector<double> m_pt_ref; // 参考帧 特征点 对应的 地图点 的模长
     std::vector<Vector3d> m_pt_host;
 
 
