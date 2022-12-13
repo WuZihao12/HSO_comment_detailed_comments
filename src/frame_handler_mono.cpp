@@ -237,7 +237,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   reprojector_.reprojectMap(new_frame_, overlap_kfs_);
 
   HSO_STOP_TIMER("reproject");
-  const size_t repr_n_new_references = reprojector_.n_matches_;
+  const size_t repr_n_new_references = reprojector_.n_matches_; // 匹配的特征点
   const size_t repr_n_mps = reprojector_.n_trials_;
   const size_t repr_n_sds = reprojector_.n_seeds_;
   const size_t repr_n_fis = reprojector_.n_filters_;
@@ -245,7 +245,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   HSO_DEBUG_STREAM("Reprojection:\t nPoints = " << repr_n_mps << "\t \t nMatches = " << repr_n_new_references
                                                 << "\t \t nSeeds = " << repr_n_sds << "\t \t Cost = "
                                                 << reprojector.elapsed() << "s");
-
+  // 如果匹配的点少，则还是使用上一帧的位姿（匹配点少，则不可信）
   if (repr_n_new_references < Config::qualityMinFts()) {
     HSO_WARN_STREAM_THROTTLE(1.0, "Not enough matched features.");
     new_frame_->T_f_w_ = last_frame_->T_f_w_; // reset to avoid crazy pose jumps
@@ -254,14 +254,17 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   }
 
   // pose optimization
+  // 对当前帧进行位姿优化（该帧上的重投影误差）
   HSO_START_TIMER("pose_optimizer");
-  size_t sfba_n_edges_final = 0;
+  // 经过之前的特征对齐，特征点的位置边了，因此要进行单帧位姿优化
+  size_t sfba_n_edges_final = 0; // 误差观测数目,优化完成后的内点数目
   double sfba_thresh = 0, sfba_error_init = 0, sfba_error_final = 0;
 
   pose_optimizer::optimizeLevenbergMarquardt3rd(
       Config::poseOptimThresh(), 12, false,
       new_frame_, sfba_thresh, sfba_error_init, sfba_error_final, sfba_n_edges_final);
 
+  // 存储优化后的内点数目
   new_frame_->m_n_inliers = sfba_n_edges_final;
 
 
@@ -270,37 +273,41 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   HSO_LOG4(sfba_thresh, sfba_error_init, sfba_error_final, sfba_n_edges_final);
   HSO_DEBUG_STREAM("PoseOptimizer:\t ErrInit = " << sfba_error_init << "px\t thresh = " << sfba_thresh);
   HSO_DEBUG_STREAM("PoseOptimizer:\t ErrFin. = " << sfba_error_final << "px\t nObsFin. = " << sfba_n_edges_final);
-  if (sfba_n_edges_final < Config::qualityMinFts())
+
+  // 如果观测的点过少（优化后的内点数太少），则返回失败
+  // Config::qualityMinFts() = 5
+  if (sfba_n_edges_final < Config::qualityMinFts()) {
     return RESULT_FAILURE;
+  }
 
 
-
-
+  /*----------------------------------------STEP3: 选择关键帧 ----------------------------------------*/
   // select keyframe
-  core_kfs_.insert(new_frame_);
+
+  core_kfs_.insert(new_frame_); // 加入到core_kfs_中用来localBA(在HSO这里似乎没用到)
+
+  // 根据优化后的内点数量来判断跟踪质量
   setTrackingQuality(sfba_n_edges_final);
+  // 如果跟踪可信度不高，那么优化后的当前帧位姿不可信，就使用上一帧的位姿,并返回失败
   if (tracking_quality_ == TRACKING_INSUFFICIENT) {
     new_frame_->T_f_w_ = last_frame_->T_f_w_; // reset to avoid crazy pose jumps
     return RESULT_FAILURE;
   }
 
   double depth_mean, depth_min;
+  // 获取当前帧特征在相机坐标系下对应的 中值深度 和 最小深度
   frame_utils::getSceneDepth(*new_frame_, depth_mean, depth_min);
   double distance_mean;
+  // 获取当前帧特征在相机坐标系下对应的 中值深度模长
   frame_utils::getSceneDistance(*new_frame_, distance_mean);
 
-  /*----------------------------------------STEP3: 选择关键帧 ----------------------------------------*/
+  // 初始化成功后的第一帧（系统第三帧）不能设置为关键帧。因为：前两帧已经是关键帧了，防止第三帧也是关键帧导致关键帧过密
   if (!needNewKf(distance_mean, sfba_n_edges_final) && !afterInit_) {
     createCovisibilityGraph(new_frame_, Config::coreNKfs(), false);
 
-
     // m_photomatric_calib->addFrame(new_frame_, pc_step);
-
-
     depth_filter_->addFrame(new_frame_);
-
     regular_counter_++;
-
     motionModel_ = new_frame_->T_f_w_ * last_frame_->T_f_w_.inverse();
 
     return RESULT_NO_KEYFRAME;
@@ -436,8 +443,10 @@ void FrameHandlerMono::setFirstFrame(const FramePtr &first_frame) {
 }
 
 bool FrameHandlerMono::needNewKf(const double &scene_depth_mean, const size_t &num_observations) {
+  // 距离上一次设置关键帧已经过去了3个普通帧的时候，才考虑设置新的关键帧
   if (regular_counter_ < 3) return false;
 
+  // 深度滤波器平均收敛的帧数
   size_t n_mean_converge_frame;
   {
     boost::unique_lock<boost::mutex> lock(depth_filter_->mean_mutex_);

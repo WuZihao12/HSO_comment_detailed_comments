@@ -303,7 +303,7 @@ bool getSceneDepth(const Frame &frame, double &depth_mean, double &depth_min) {
   depth_vec.reserve(frame.fts_.size());
   depth_min = std::numeric_limits<double>::max();
   for (auto it = frame.fts_.begin(), ite = frame.fts_.end(); it != ite; ++it) {
-    if ((*it)->point != NULL) {
+    if ((*it)->point != nullptr) {
       const double z = frame.w2f((*it)->point->pos_).z();
       depth_vec.push_back(z);
       depth_min = fmin(z, depth_min);
@@ -322,7 +322,7 @@ bool getSceneDistance(const Frame &frame, double &distance_mean) {
   vector<double> distance_vec;
   distance_vec.reserve(frame.fts_.size());
   for (auto &ft: frame.fts_) {
-    if (ft->point == NULL) continue;
+    if (ft->point == nullptr) continue;
 
     const double distance = frame.w2f(ft->point->pos_).norm();
     distance_vec.push_back(distance);

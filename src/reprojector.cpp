@@ -127,7 +127,8 @@ void Reprojector::reprojectMap(
 
   FramePtr LastFrame = frame->m_last_frame;
   size_t nCovisibilityGraph = 0; // <= 5
-  for (vector<Frame *>::iterator it = LastFrame->connectedKeyFrames.begin(); it != LastFrame->connectedKeyFrames.end(); ++it) {
+  for (vector<Frame *>::iterator it = LastFrame->connectedKeyFrames.begin(); it != LastFrame->connectedKeyFrames.end();
+       ++it) {
 
     Frame *repframe = *it;
     FramePtr repFrame = nullptr;
@@ -286,6 +287,7 @@ void Reprojector::reprojectMap(
   HSO_START_TIMER("feature_align");
 
   // 小于200+25
+  // Config::maxFts() = 200
   if (allPixelToDistribute.size() < Config::maxFts() + 50) {
     reprojectCellAll(allPixelToDistribute, frame);
   } else {
@@ -325,6 +327,7 @@ void Reprojector::reprojectMap(
   }
 
   // reproject seed
+  // 如果匹配数目少于100 且 允许投影未收敛的种子（地图点）
   if (n_matches_ < 100 && options_.reproject_unconverged_seeds) {
     DepthFilter::lock_t lock(depth_filter_->seeds_mut_);
     for (auto it = depth_filter_->seeds_.begin(); it != depth_filter_->seeds_.end(); ++it) {
@@ -384,6 +387,7 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
     }
 
     /*直接使用图像对齐来进行匹配*/
+    /*STATE_1: 匹配失败*/
     // 如果没找到，则重投影失败次数加一，并处理点删除网格
     if (!matcher_.findMatchDirect(*it->pt, *frame, it->px)) {
       it->pt->n_failed_reproj_++;
@@ -402,11 +406,15 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
       it = cell.erase(it);
       continue;
     }
-    // 如果重投影匹配成功
-    it->pt->n_succeeded_reproj_++;
-    if (it->pt->type_ == Point::TYPE_UNKNOWN && it->pt->n_succeeded_reproj_ > 10)
-      it->pt->type_ = Point::TYPE_GOOD;
 
+    /*STATE_2: 重投影匹配成功*/
+    // 满足条件就将该点升级为GOOD点
+    it->pt->n_succeeded_reproj_++;
+    if (it->pt->type_ == Point::TYPE_UNKNOWN && it->pt->n_succeeded_reproj_ > 10) {
+      it->pt->type_ = Point::TYPE_GOOD;
+    }
+
+    // 在当前帧上找到匹配的点，加到帧中
     Feature *new_feature = new Feature(frame.get(), it->px, matcher_.search_level_);
     frame->addFeature(new_feature);
 
@@ -414,6 +422,7 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
     // round is only done if this frame is selected as keyframe.
     new_feature->point = it->pt;
 
+    // ref_ftr: 找到与点 pt 对应的, 离当前帧最近的帧上的的特征ref_ftr
     if (matcher_.ref_ftr_->type == Feature::EDGELET) {
       new_feature->type = Feature::EDGELET;
       new_feature->grad = matcher_.A_cur_ref_ * matcher_.ref_ftr_->grad;
@@ -425,8 +434,7 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
       new_feature->type = Feature::CORNER;
 
 
-    // If the keyframe is selected and we reproject the rest, we don't have to
-    // check this point anymore.
+    // If the keyframe is selected and we reproject the rest, we don't have to check this point anymore.
     it = cell.erase(it);
 
     if (!is_3rd)
@@ -511,7 +519,7 @@ bool Reprojector::reprojectorSeeds(Sell &sell, FramePtr frame) {
 
 bool Reprojector::reprojectPoint(FramePtr frame, Point *point, vector<pair<Vector2d, Point *> > &cells) {
 
-  // 得到最先观测到该地图点的2D特征
+  // 得到最先观测到该地图点的2D特征对应的3D点（宿主帧上）
   Vector3d pHost = point->hostFeature_->f * (1.0 / point->idist_);
 
   assert((point->pos_ - (point->hostFeature_->frame->T_f_w_.inverse() * pHost)).norm() < 0.0001); // TODO:add by wzh

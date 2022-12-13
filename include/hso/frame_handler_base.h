@@ -56,7 +56,7 @@ public:
     STAGE_RELOCALIZING // 重定位
   };
   enum TrackingQuality {
-    TRACKING_INSUFFICIENT, // 跟踪到的特征太少
+    TRACKING_INSUFFICIENT, // 跟踪到的特征太少(匹配点少，不可信)
     TRACKING_BAD, // 跟踪质量不好，丢失特征太多
     TRACKING_GOOD // 跟踪质量好
   };

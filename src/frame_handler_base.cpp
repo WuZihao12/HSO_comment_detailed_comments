@@ -168,7 +168,12 @@ void FrameHandlerBase::setTrackingQuality(const size_t num_observations) {
     HSO_WARN_STREAM_THROTTLE(0.5, "Tracking less than " << Config::qualityMinFts() << " features!");
     tracking_quality_ = TRACKING_INSUFFICIENT;
   }
+  // Config::maxFts() = 200
+  // num_obs_last_ : 上一帧的观测数量（上一阵优化后的内点数）
+  // 上一帧和当前帧之间的观测数量（内点数/特征）相差太大
   const int feature_drop = static_cast<int>(std::min(num_obs_last_, Config::maxFts())) - num_observations;
+
+  // Config::qualityMaxFtsDrop() = 40
   if (feature_drop > Config::qualityMaxFtsDrop()) {
     HSO_WARN_STREAM("Lost " << feature_drop << " features!");
     tracking_quality_ = TRACKING_BAD;
