@@ -103,10 +103,12 @@ size_t CoarseTracker::run(FramePtr ref_frame, FramePtr cur_frame) {
     Matrix7d H;
     Vector7d b;
     // Matrix6d H; Vector6d b;
+    // 计算海森矩阵H 和 b
     computeGS(H, b);
 
     float lambda = 0.1;
 
+    // L-M算法迭代优化求解
     for (m_iter = 0; m_iter < m_n_iter; m_iter++) {
       Matrix7d Hl = H;
       for (int i = 0; i < 7; i++) Hl(i, i) *= (1 + lambda);
@@ -151,6 +153,7 @@ size_t CoarseTracker::run(FramePtr ref_frame, FramePtr cur_frame) {
                << endl;
         }
 
+        // 计算 H矩阵 和 b矩阵
         computeGS(H, b);
         energy_old = energy_new;
 
@@ -257,6 +260,7 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
   // cutoff_error：截断误差
   const float max_energy = 2 * setting_huberTH * cutoff_error - setting_huberTH * setting_huberTH;
 
+
   const int pattern_offset = m_offset_all; // 2->3->4->5 模板（pattern）偏移
 
 
@@ -273,15 +277,19 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
   m_color_cur.clear();
   m_color_ref.clear();
 
-  size_t feature_counter = 0;
+  size_t feature_counter = 0; // 被用来计算 雅克比矩阵 的索引（序号）
+
+  // 遍历参考帧图像上的特征点
   std::vector<bool>::iterator visiblity_it = m_visible_fts.begin();
   for (auto it_ft = m_ref_frame->fts_.begin(); it_ft != m_ref_frame->fts_.end();
        ++it_ft, ++feature_counter, ++visiblity_it) {
+
+    // 特征点不在图像中则忽略
     if (!*visiblity_it) continue;
 
     // if(m_edge_reject == EdgeRejectLevel::PARTLY && (*it_ft)->type == Feature::EDGELET && m_level == m_max_level)
     //     continue;
-
+    //
     // double depth = ((*it_ft)->point->pos_ - ref_pos).norm();
     //    Vector3d xyz_ref((*it_ft)->f*depth);
 
@@ -298,16 +306,18 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
 
     if (xyz_cur[2] < 0) continue;
 
+    // 将归一化后（z=1）的地图点投影到当前帧的第0层
     Vector2f uv_cur_0(m_cur_frame->cam_->world2cam(xyz_cur).cast<float>());
+    // 将坐标缩放到当前图像的金字塔层
     Vector2f uv_cur_pyr(uv_cur_0 * scale);
     float u_cur = uv_cur_pyr[0];
     float v_cur = uv_cur_pyr[1];
-    int u_cur_i = floorf(u_cur);
+    int u_cur_i = floorf(u_cur); // 向下取整用于双线性插值
     int v_cur_i = floorf(v_cur);
 
     // check if projection is within the image
-    if (u_cur_i - border < 0 || v_cur_i - border < 0 || u_cur_i + border >= cur_img.cols
-        || v_cur_i + border >= cur_img.rows)
+    // 随着金字塔层级的增加，border会减少，因为图像被采样放大，border应相应的减少
+    if (u_cur_i - border < 0 || v_cur_i - border < 0 || u_cur_i + border >= cur_img.cols || v_cur_i + border >= cur_img.rows)
       continue;
 
     Matrix<double, 2, 6> frame_jac;
@@ -322,9 +332,11 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
     float w_cur_bl = (1.0 - subpix_u_cur) * subpix_v_cur;
     float w_cur_br = subpix_u_cur * subpix_v_cur;
 
+    // 参考帧图像的patch
     float *ref_patch_cache_ptr = reinterpret_cast<float *>(m_ref_patch_cache.data) + PATCH_AREA * feature_counter;
     size_t pixel_counter = 0;
 
+    // PATCH_AREA: 9->13->13->21
     for (int n = 0; n < PATCH_AREA; ++n, ++ref_patch_cache_ptr, ++pixel_counter) {
       // uint8_t* cur_img_ptr;
       // if(m_level == m_max_level)
@@ -341,12 +353,17 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
           + w_cur_tr * cur_img_ptr[1]
           + w_cur_bl * cur_img_ptr[stride]
           + w_cur_br * cur_img_ptr[stride + 1];
+
+      // 判断当前帧该特征点的光度值是否是有限值
       if (!std::isfinite(cur_color)) continue;
 
+      // 计算当前帧和参考图像帧的光度误差
       float residual = cur_color - (exposure_rat * (*ref_patch_cache_ptr) + b);
 
+      // huber weight：huber核函数的权重
       float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
+      // 如果误差大于截断误差 且 当前不是处于最高图像金字塔层级
       if (fabs(residual) > cutoff_error && m_level < m_max_level) {
         E += max_energy;
         m_total_terms++;
@@ -388,7 +405,7 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
         } else {
           Vector6d J_T(m_jacobian_cache_true.col(feature_counter * PATCH_AREA + pixel_counter));
 
-          double J_e = -(*ref_patch_cache_ptr);
+          double J_e = -(*ref_patch_cache_ptr); // 参考帧光度值
           // if(cur_color > 253 || (*ref_patch_cache_ptr) > 253 || cur_color < 2 || (*ref_patch_cache_ptr) < 2)
           //     J_e = 0;
 
@@ -399,8 +416,8 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
 
           m_buf_jacobian.push_back(J);  // 7d
           // m_buf_jacobian.push_back(J_T);   // 6d
-          m_buf_weight.push_back(hw);
-          m_buf_error.push_back(residual);
+          m_buf_weight.push_back(hw); //huber weight
+          m_buf_error.push_back(residual); // 残差
         }
       }
 
@@ -410,6 +427,7 @@ double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat,
     }
   }
 
+  // 返回平均的残差平方
   return E / m_total_terms;
 }
 

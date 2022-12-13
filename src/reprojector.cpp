@@ -383,22 +383,26 @@ bool Reprojector::reprojectCell(Cell &cell, FramePtr frame, bool is_2nd, bool is
       continue;
     }
 
-    // 定义了直接找的方法
+    /*直接使用图像对齐来进行匹配*/
+    // 如果没找到，则重投影失败次数加一，并处理点删除网格
     if (!matcher_.findMatchDirect(*it->pt, *frame, it->px)) {
       it->pt->n_failed_reproj_++;
+      // 如果是unknow 且 重投影失败15次，则删除
       if (it->pt->type_ == Point::TYPE_UNKNOWN && it->pt->n_failed_reproj_ > 15)
         map_.safeDeletePoint(it->pt);
+      // 如果是候选点，且 重投影失败30次，则从候选点集合中删除
       if (it->pt->type_ == Point::TYPE_CANDIDATE && it->pt->n_failed_reproj_ > 30)
         map_.point_candidates_.deleteCandidatePoint(it->pt);
 
       // DD added in 7.16
+      // 如果是临时地图点，且 重投影失败30次，则将该点置为坏点
       if (it->pt->type_ == Point::TYPE_TEMPORARY && it->pt->n_failed_reproj_ > 30)
         it->pt->isBad_ = true;
 
       it = cell.erase(it);
       continue;
     }
-
+    // 如果重投影匹配成功
     it->pt->n_succeeded_reproj_++;
     if (it->pt->type_ == Point::TYPE_UNKNOWN && it->pt->n_succeeded_reproj_ > 10)
       it->pt->type_ = Point::TYPE_GOOD;

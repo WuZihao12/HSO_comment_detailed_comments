@@ -190,12 +190,12 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
 
   new_frame_->m_last_frame = last_frame_;
 
+  /*----------------------------------------STEP1: 初始 位姿估计以及曝光时间获取----------------------------------------*/
   /*
   Adaptive selection of image alignment methods(采用两种klt跟踪方法，能够适用更多的场景，该方法仅仅用于初始化部分)
   state_1: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 > 0.5
   state_2: 当前帧的图像平均梯度值 - 上一阵的图像平均梯度值 <= 0.5
   */
-  // 初始 位姿估计以及曝光时间获取
   if (new_frame_->gradMean_ > last_frame_->gradMean_ + 0.5) {
     //HSO_DEBUG_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
     HSO_INFO_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
@@ -233,6 +233,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   boost::timer reprojector;
   HSO_START_TIMER("reproject");
 
+  /*----------------------------------------STEP2: 特征跟踪 ----------------------------------------*/
   reprojector_.reprojectMap(new_frame_, overlap_kfs_);
 
   HSO_STOP_TIMER("reproject");
@@ -288,6 +289,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   double distance_mean;
   frame_utils::getSceneDistance(*new_frame_, distance_mean);
 
+  /*----------------------------------------STEP3: 选择关键帧 ----------------------------------------*/
   if (!needNewKf(distance_mean, sfba_n_edges_final) && !afterInit_) {
     createCovisibilityGraph(new_frame_, Config::coreNKfs(), false);
 
@@ -321,6 +323,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
 
   createCovisibilityGraph(new_frame_, Config::coreNKfs(), true);
 
+  /*----------------------------------------STEP4: 局部BA优化 ----------------------------------------*/
   // bundle adjustment
   if (Config::lobaNumIter() > 0) {
     HSO_START_TIMER("local_ba");
