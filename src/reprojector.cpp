@@ -127,8 +127,8 @@ void Reprojector::reprojectMap(
 
   FramePtr LastFrame = frame->m_last_frame;
   size_t nCovisibilityGraph = 0; // <= 5
-  for (vector<Frame *>::iterator it = LastFrame->connectedKeyFrames.begin(); it != LastFrame->connectedKeyFrames.end();
-       ++it) {
+  for (vector<Frame *>::iterator it = LastFrame->connectedKeyFrames.begin(); it != LastFrame->connectedKeyFrames.end(); ++it) {
+
     Frame *repframe = *it;
     FramePtr repFrame = nullptr;
     if (!map_.getKeyframeById(repframe->id_, repFrame))
@@ -142,7 +142,7 @@ void Reprojector::reprojectMap(
     overlap_kfs.push_back(pair<FramePtr, size_t>(repFrame, 0));
 
     for (auto ite = repFrame->fts_.begin(); ite != repFrame->fts_.end(); ++ite) {
-      if ((*ite)->point == NULL)
+      if ((*ite)->point == nullptr)
         continue;
 
       if ((*ite)->point->type_ == Point::TYPE_TEMPORARY)
@@ -443,7 +443,7 @@ bool Reprojector::reprojectorSeeds(Sell &sell, FramePtr frame) {
   Sell::iterator it = sell.begin();
   while (it != sell.end()) {
     if (matcher_.findMatchSeed(it->seed, *frame, it->px)) {
-      assert(it->seed.ftr->point == NULL);
+      assert(it->seed.ftr->point == nullptr);
 
       ++n_seeds_;
       sum_seed_++;

@@ -94,8 +94,10 @@ size_t CoarseTracker::run(FramePtr ref_frame, FramePtr cur_frame) {
     //     cout << "Huber = " << m_huber_thresh << "\tOutliers = " << m_outlier_thresh << endl;
     // }
 
+    // 外点阈值
     const double cutoff_error = m_outlier_thresh;
 
+    // 计算残差
     double energy_old = computeResiduals(m_T_cur_ref, m_exposure_rat, cutoff_error);
 
     Matrix7d H;
@@ -224,33 +226,45 @@ void CoarseTracker::makeDepthRef() {
     //     m_nr_corner_inliers++;
   }
 }
-
+// 计算残差
+// cutoff_error：截断误差
 double CoarseTracker::computeResiduals(const SE3 &T_cur_ref, float exposure_rat, double cutoff_error, float b) {
-  if (m_inverse_composition)
-    m_jacobian_cache_true = exposure_rat * m_jacobian_cache_raw;
 
+  if (m_inverse_composition) {
+    m_jacobian_cache_true = exposure_rat * m_jacobian_cache_raw;
+  }
+  // 取出当前金字塔层的图像
   const cv::Mat &cur_img = m_cur_frame->img_pyr_.at(m_level);
+
+  // 当前图像金字塔的宽
   const int stride = cur_img.cols;
+  // border = HALF_PATCH_SIZE + 1 : 2->3->3->4
   const int border = HALF_PATCH_SIZE + 1;
+  // 当前图像相当于原始图的缩放比例
   const float scale = 1.0f / (1 << m_level);
+  // 参考图像帧位置
   const Vector3d ref_pos(m_ref_frame->pos());
+
+  // 得到当前金字塔层的 焦距 = 焦距（原始图像）* 缩放比例
   const double fxl = m_ref_frame->cam_->focal_length().x() * scale;
   const double fyl = m_ref_frame->cam_->focal_length().y() * scale;
 
+  // 设置Huber鲁棒核函数的阈值
   float setting_huberTH = m_huber_thresh;
   // if(m_level == m_max_level && m_iter == 0) setting_huberTH *= 2;
 
 
+  // cutoff_error：截断误差
   const float max_energy = 2 * setting_huberTH * cutoff_error - setting_huberTH * setting_huberTH;
 
-  const int pattern_offset = m_offset_all;
+  const int pattern_offset = m_offset_all; // 2->3->4->5 模板（pattern）偏移
 
 
   // reset
   m_buf_jacobian.clear();
   m_buf_weight.clear();
   m_buf_error.clear();
-  m_total_terms = m_saturated_terms = 0;
+  m_total_terms = m_saturated_terms = 0; // saturate: 饱和
 
   float E = 0;
   //[TODO] debug affine
@@ -479,21 +493,26 @@ void CoarseTracker::precomputeReferencePatches() {
 
       if (m_inverse_composition) {
         float dx = 0.5f
-            * ((w_ref_tl * ref_img_ptr[1] + w_ref_tr * ref_img_ptr[2] + w_ref_bl * ref_img_ptr[stride + 1] + w_ref_br * ref_img_ptr[stride + 2])
-            - (w_ref_tl * ref_img_ptr[-1] + w_ref_tr * ref_img_ptr[0] + w_ref_bl * ref_img_ptr[stride - 1] + w_ref_br * ref_img_ptr[stride]));
+            * ((w_ref_tl * ref_img_ptr[1] + w_ref_tr * ref_img_ptr[2] + w_ref_bl * ref_img_ptr[stride + 1]
+                + w_ref_br * ref_img_ptr[stride + 2])
+                - (w_ref_tl * ref_img_ptr[-1] + w_ref_tr * ref_img_ptr[0] + w_ref_bl * ref_img_ptr[stride - 1]
+                    + w_ref_br * ref_img_ptr[stride]));
         float dy = 0.5f
-            * ((w_ref_tl * ref_img_ptr[stride] + w_ref_tr * ref_img_ptr[1 + stride] + w_ref_bl * ref_img_ptr[stride * 2] + w_ref_br * ref_img_ptr[stride * 2 + 1])
-            - (w_ref_tl * ref_img_ptr[-stride] + w_ref_tr * ref_img_ptr[1 - stride] + w_ref_bl * ref_img_ptr[0] + w_ref_br * ref_img_ptr[1]));
+            * ((w_ref_tl * ref_img_ptr[stride] + w_ref_tr * ref_img_ptr[1 + stride] + w_ref_bl * ref_img_ptr[stride * 2]
+                + w_ref_br * ref_img_ptr[stride * 2 + 1])
+                - (w_ref_tl * ref_img_ptr[-stride] + w_ref_tr * ref_img_ptr[1 - stride] + w_ref_bl * ref_img_ptr[0]
+                    + w_ref_br * ref_img_ptr[1]));
 
         // 图像块上的每个像素点误差对相机位姿的雅可比矩阵
         // 要优化的是参考帧相对于当前帧的位姿
         m_jacobian_cache_raw.col(feature_counter * PATCH_AREA + pixel_counter)
-                              = dx * frame_jac.row(0) * fxl + dy * frame_jac.row(1) * fyl;
+            = dx * frame_jac.row(0) * fxl + dy * frame_jac.row(1) * fyl;
       }
     }
   }
 }
 
+// 使用
 void CoarseTracker::computeGS(Matrix7d &H_out, Vector7d &b_out) {
   assert(m_buf_jacobian.size() == m_buf_weight.size());
 
@@ -520,7 +539,7 @@ void CoarseTracker::computeGS(Matrix7d &H_out, Vector7d &b_out) {
   H_out = m_acc7.H.cast<double>();
 }
 
-// 计算光度残差
+// 通过计算光度残差 来 自适应调节鲁棒核函数的参数
 void CoarseTracker::selectRobustFunctionLevel(const SE3 &T_cur_ref, float exposure_rat, float b) {
   const cv::Mat &cur_img = m_cur_frame->img_pyr_.at(m_level);
   const int stride = cur_img.cols;

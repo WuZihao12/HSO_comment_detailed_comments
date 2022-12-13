@@ -211,8 +211,10 @@ void hso::System::runFromFolder() {
     //读取图片
     cv::Mat image = image_reader_->readImage(img_id);
 
-    if (cam_->getUndistort()) cam_->undistortImage(image, image);
-
+    // 图像去畸变
+    if (cam_->getUndistort()) {
+      cam_->undistortImage(image, image);
+    }
     //如果输入的参数有采样时间，那么image_reader_->stampValid()返回true，否则返回false
     if (image_reader_->stampValid()) {
       std::string time_stamp = image_reader_->readStamp(img_id);

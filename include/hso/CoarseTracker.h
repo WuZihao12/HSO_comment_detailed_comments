@@ -174,7 +174,7 @@ private:
 	Matrix<double, 6, Dynamic, ColMajor> m_jacobian_cache_true;
     Matrix<double, 6, Dynamic, ColMajor> m_jacobian_cache_raw;
 
-    std::vector<Vector7d> m_buf_jacobian;
+    std::vector<Vector7d> m_buf_jacobian; // 7*1的列向量
     // std::vector<Vector6d> m_buf_jacobian;
     std::vector<double> m_buf_weight;
     std::vector<double> m_buf_error;
