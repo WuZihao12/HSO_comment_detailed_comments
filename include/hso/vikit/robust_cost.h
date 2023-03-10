@@ -63,7 +63,7 @@ protected:
 };
 
 
-// estimates scale by computing the median absolute deviation
+// estimates scale by computing the median absolute deviation（偏差）
 class MADScaleEstimator : public ScaleEstimator
 {
 public:

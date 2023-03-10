@@ -71,7 +71,7 @@ DepthFilter::DepthFilter(
     featureExtractor_(featureExtractor),
     seed_converged_cb_(seed_converged_cb),
     seeds_updating_halt_(false),
-    thread_(nullptr),
+    thread_(NULL),
     new_keyframe_set_(false),
     new_keyframe_min_depth_(0.0),
     new_keyframe_mean_depth_(0.0),
@@ -106,12 +106,12 @@ void DepthFilter::startThread() {
 
 void DepthFilter::stopThread() {
   HSO_INFO_STREAM("DepthFilter stop thread invoked.");
-  if (thread_ != nullptr) {
+  if (thread_ != NULL) {
     HSO_INFO_STREAM("DepthFilter interrupt and join thread... ");
     seeds_updating_halt_ = true;
     thread_->interrupt();
     thread_->join();
-    thread_ = nullptr;
+    thread_ = NULL;
   }
 
   delete threadReducer_;
@@ -124,7 +124,7 @@ void DepthFilter::stopThread() {
 该函数同样会调用updateSeeds()函数进行种子深度滤波（可以看出，正常情况下还是交由专门的深度滤波线程来进行深度滤波，而不是在主线程
 中完成）。*/
 void DepthFilter::addFrame(FramePtr frame) {
-  if (thread_ != nullptr) {
+  if (thread_ != NULL) {
     {
       lock_t lock(frame_queue_mut_);
       if (frame_queue_.size() > 2)
@@ -145,7 +145,7 @@ void DepthFilter::addKeyframe(FramePtr frame, double depth_mean, double depth_mi
   new_keyframe_mean_depth_ = depth_mean;
   convergence_sigma2_thresh_ = converge_thresh;
 
-  if (thread_ != nullptr) {
+  if (thread_ != NULL) {
     new_keyframe_ = frame; // 有新的关键帧要处理
     new_keyframe_set_ = true; // 有新的关键帧要处理
     seeds_updating_halt_ = true; // 种子更新停止
@@ -239,6 +239,7 @@ void DepthFilter::reset() {
     HSO_INFO_STREAM("DepthFilter: RESET.");
 }
 
+// 深度滤波线程
 void DepthFilter::updateSeedsLoop() {
   while (!boost::this_thread::interruption_requested()) //当有请求interrupt时终止
   {
@@ -327,7 +328,7 @@ void DepthFilter::updateSeeds(FramePtr frame) {
       Frame *dframe = (*it).get();
       if (!dframe->isKeyframe()) {
         delete dframe;
-        dframe = nullptr;
+        dframe = NULL;
       }
       ++it;
     }
@@ -358,13 +359,13 @@ void DepthFilter::updateSeeds(FramePtr frame) {
     // check if seed is not already too old
     // 有些种子，无论进行多少次更新（过了多少帧），也没能收敛，那就将其从种子集中删除，不在对其进行更新（再进行下去也无益）
     if ((Seed::batch_counter - it->batch_id) > options_.max_n_kfs) {
-      assert(it->ftr->point == nullptr); // TODO this should not happen anymore
+      assert(it->ftr->point == NULL); // TODO this should not happen anymore
 
-      if (it->temp != nullptr && it->haveReprojected)
+      if (it->temp != NULL && it->haveReprojected)
         it->temp->seedStates_ = -1;
       else {
         delete it->ftr;
-        it->ftr = nullptr;
+        it->ftr = NULL;
       }
       // seed_finish_cb_(it->temp, false);
 
@@ -387,7 +388,7 @@ void DepthFilter::updateSeeds(FramePtr frame) {
       return;
 
     if (sqrt(it->sigma2) < it->z_range / it->converge_thresh) {
-      assert(it->ftr->point == nullptr); // TODO this should not happen anymore
+      assert(it->ftr->point == NULL); // TODO this should not happen anymore
 
 
 
@@ -401,7 +402,7 @@ void DepthFilter::updateSeeds(FramePtr frame) {
       if (it->mu < 1e-10 || pHost[2] < 1e-10) isValid = false;
 
       if (!isValid) {
-        if (it->temp != nullptr && it->haveReprojected)
+        if (it->temp != NULL && it->haveReprojected)
           it->temp->seedStates_ = -1;
 
         it = seeds_.erase(it);

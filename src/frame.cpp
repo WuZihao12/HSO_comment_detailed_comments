@@ -43,7 +43,7 @@ int Frame::keyFrameCounter_ = 0;
 
 Frame::Frame(hso::AbstractCamera *cam, const cv::Mat &img, double timestamp) :
     id_(frame_counter_++), timestamp_(timestamp),
-    cam_(cam), key_pts_(5), is_keyframe_(false), v_kf_(nullptr), gradMean_(0) {
+    cam_(cam), key_pts_(5), is_keyframe_(false), v_kf_(NULL), gradMean_(0) {
   // if(opc != NULL) m_pc = opc;
 
   initFrame(img);
@@ -81,7 +81,7 @@ void Frame::initFrame(const cv::Mat &img) {
         "Frame: provided image has not the same size as the camera model or image is not grayscale");
 
   // Set keypoints to NULL
-  std::for_each(key_pts_.begin(), key_pts_.end(), [&](Feature *ftr) { ftr = nullptr; });
+  std::for_each(key_pts_.begin(), key_pts_.end(), [&](Feature *ftr) { ftr = NULL; });
 
   // Build Image Pyramid
   // 建立图像金字塔
@@ -113,11 +113,11 @@ void Frame::getFeaturesCopy(Features &list_copy) {
 void Frame::setKeyPoints() // thread safe
 {
   for (size_t i = 0; i < 5; ++i)
-    if (key_pts_[i] != nullptr)
-      if (key_pts_[i]->point == nullptr)
-        key_pts_[i] = nullptr;
+    if (key_pts_[i] != NULL)
+      if (key_pts_[i]->point == NULL)
+        key_pts_[i] = NULL;
 
-  std::for_each(fts_.begin(), fts_.end(), [&](Feature *ftr) { if (ftr->point != nullptr) checkKeyPoints(ftr); });
+  std::for_each(fts_.begin(), fts_.end(), [&](Feature *ftr) { if (ftr->point != NULL) checkKeyPoints(ftr); });
 }
 
 void Frame::checkKeyPoints(Feature *ftr) {
@@ -126,14 +126,14 @@ void Frame::checkKeyPoints(Feature *ftr) {
   const Vector2d uv = ftr->px;
 
   // center point
-  if (key_pts_[0] == nullptr)
+  if (key_pts_[0] == NULL)
     key_pts_[0] = ftr;
   else if (std::max(std::fabs(ftr->px[0] - cu), std::fabs(ftr->px[1] - cv))
       < std::max(std::fabs(key_pts_[0]->px[0] - cu), std::fabs(key_pts_[0]->px[1] - cv)))
     key_pts_[0] = ftr;
   // right dn
   if (uv[0] >= cu && uv[1] >= cv) {
-    if (key_pts_[1] == nullptr)
+    if (key_pts_[1] == NULL)
       key_pts_[1] = ftr;
     else if ((uv[0] - cu) * (uv[1] - cv)
         > (key_pts_[1]->px[0] - cu) * (key_pts_[1]->px[1] - cv))
@@ -141,7 +141,7 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // right up
   if (uv[0] >= cu && uv[1] < cv) {
-    if (key_pts_[2] == nullptr)
+    if (key_pts_[2] == NULL)
       key_pts_[2] = ftr;
     else if ((uv[0] - cu) * -(uv[1] - cv)
         > (key_pts_[2]->px[0] - cu) * -(key_pts_[2]->px[1] - cv))
@@ -149,7 +149,7 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // left dn
   if (uv[0] < cu && uv[1] >= cv) {
-    if (key_pts_[3] == nullptr)
+    if (key_pts_[3] == NULL)
       key_pts_[3] = ftr;
     else if (-(uv[0] - cu) * (uv[1] - cv)
         > -(key_pts_[3]->px[0] - cu) * (key_pts_[3]->px[1] - cv))
@@ -157,14 +157,20 @@ void Frame::checkKeyPoints(Feature *ftr) {
   }
   // left up
   if (uv[0] < cu && uv[1] < cv) {
-    if (key_pts_[4] == nullptr)
+    if (key_pts_[4] == NULL)
       key_pts_[4] = ftr;
     else if (-(uv[0] - cu) * -(uv[1] - cv)
         > -(key_pts_[4]->px[0] - cu) * -(key_pts_[4]->px[1] - cv))
       key_pts_[4] = ftr;
   }
 }
-
+/********************************
+ * @ function: 从5个keyPoints中删除指定的feature
+ *
+ * @ param:
+ *
+ * @ note:
+ *******************************/
 void Frame::removeKeyPoint(Feature *ftr) {
   bool found = false;
   std::for_each(key_pts_.begin(), key_pts_.end(), [&](Feature *&i) {
@@ -173,7 +179,6 @@ void Frame::removeKeyPoint(Feature *ftr) {
       found = true;
     }
   });
-
   if (found) setKeyPoints();
 }
 
@@ -303,7 +308,7 @@ bool getSceneDepth(const Frame &frame, double &depth_mean, double &depth_min) {
   depth_vec.reserve(frame.fts_.size());
   depth_min = std::numeric_limits<double>::max();
   for (auto it = frame.fts_.begin(), ite = frame.fts_.end(); it != ite; ++it) {
-    if ((*it)->point != nullptr) {
+    if ((*it)->point != NULL) {
       const double z = frame.w2f((*it)->point->pos_).z();
       depth_vec.push_back(z);
       depth_min = fmin(z, depth_min);
@@ -322,7 +327,7 @@ bool getSceneDistance(const Frame &frame, double &distance_mean) {
   vector<double> distance_vec;
   distance_vec.reserve(frame.fts_.size());
   for (auto &ft: frame.fts_) {
-    if (ft->point == nullptr) continue;
+    if (ft->point == NULL) continue;
 
     const double distance = frame.w2f(ft->point->pos_).norm();
     distance_vec.push_back(distance);

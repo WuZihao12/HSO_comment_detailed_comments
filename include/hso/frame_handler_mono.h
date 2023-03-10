@@ -78,6 +78,7 @@ public:
   FramePtr firstFrame_; // 系统初始化时候的第一帧
 
   set<FramePtr> core_kfs_;                      //!< Keyframes in the closer neighbourhood.
+  //!< 第一个参数是具有一定共视关系的关键帧, 第二个参数是该帧观察到多少个地图点
   vector< pair<FramePtr,size_t> > overlap_kfs_; //!< All keyframes with overlapping field of view. the paired number specifies how many common mappoints are observed TODO: why vector!?
 
   initialization::KltHomographyInit klt_homography_init_; //!< Used to estimate pose of the first two keyframes by estimating a homography.

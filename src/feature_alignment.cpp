@@ -39,39 +39,37 @@ namespace feature_alignment {
 #define SUBPIX_VERBOSE 0
 
 bool align1D(
-    const cv::Mat& cur_img,
-    const Vector2f& dir,                  // direction in which the patch is allowed to move
-    uint8_t* ref_patch_with_border,
-    uint8_t* ref_patch,
+    const cv::Mat &cur_img,
+    const Vector2f &dir,                  // direction in which the patch is allowed to move
+    uint8_t *ref_patch_with_border,
+    uint8_t *ref_patch,
     const int n_iter,
-    Vector2d& cur_px_estimate,
-    double& h_inv)
-{
+    Vector2d &cur_px_estimate,
+    double &h_inv) {
   const int halfpatch_size_ = 4;
   const int patch_size = 8;
   const int patch_area = 64;
-  bool converged=false;
+  bool converged = false;
 
   // compute derivative of template and prepare inverse compositional
   float __attribute__((__aligned__(16))) ref_patch_dv[patch_area];
-  Matrix2f H; H.setZero();
+  Matrix2f H;
+  H.setZero();
 
   // compute gradient and hessian
-  const int ref_step = patch_size+2;
-  float* it_dv = ref_patch_dv;
+  const int ref_step = patch_size + 2;
+  float *it_dv = ref_patch_dv;
   Vector2f J;
-  for(int y=0; y<patch_size; ++y)
-  {
-    uint8_t* it = ref_patch_with_border + (y+1)*ref_step + 1;
-    for(int x=0; x<patch_size; ++x, ++it, ++it_dv)
-    {
-      J[0] = 0.5*(dir[0]*(it[1] - it[-1]) + dir[1]*(it[ref_step] - it[-ref_step]));
+  for (int y = 0; y < patch_size; ++y) {
+    uint8_t *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size; ++x, ++it, ++it_dv) {
+      J[0] = 0.5 * (dir[0] * (it[1] - it[-1]) + dir[1] * (it[ref_step] - it[-ref_step]));
       J[1] = 1;
       *it_dv = J[0];
-      H += J*J.transpose();
+      H += J * J.transpose();
     }
   }
-  h_inv = 1.0/H(0,0)*patch_size*patch_size;
+  h_inv = 1.0 / H(0, 0) * patch_size * patch_size;
   Matrix2f Hinv = H.inverse();
   float mean_diff = 0;
 
@@ -80,63 +78,62 @@ bool align1D(
   float v = cur_px_estimate.y();
 
   // termination condition
-  const float min_update_squared = 0.01*0.01;
+  const float min_update_squared = 0.01 * 0.01;
   const int cur_step = cur_img.step.p[0];
   float chi2 = 0;
-  Vector2f update; update.setZero();
-  Vector2f Jres; Jres.setZero();
-  for(int iter = 0; iter<n_iter; ++iter)
-  {
+  Vector2f update;
+  update.setZero();
+  Vector2f Jres;
+  Jres.setZero();
+  for (int iter = 0; iter < n_iter; ++iter) {
     int u_r = floor(u);
     int v_r = floor(v);
-    if(u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols-halfpatch_size_ || v_r >= cur_img.rows-halfpatch_size_)
+    if (u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols - halfpatch_size_
+        || v_r >= cur_img.rows - halfpatch_size_)
       break;
 
-    if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
       return false;
 
     // compute interpolation weights
-    float subpix_x = u-u_r;
-    float subpix_y = v-v_r;
-    float wTL = (1.0-subpix_x)*(1.0-subpix_y);
-    float wTR = subpix_x * (1.0-subpix_y);
-    float wBL = (1.0-subpix_x)*subpix_y;
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float wTL = (1.0 - subpix_x) * (1.0 - subpix_y);
+    float wTR = subpix_x * (1.0 - subpix_y);
+    float wBL = (1.0 - subpix_x) * subpix_y;
     float wBR = subpix_x * subpix_y;
 
     // loop through search_patch, interpolate
-    uint8_t* it_ref = ref_patch;
-    float* it_ref_dv = ref_patch_dv;
+    uint8_t *it_ref = ref_patch;
+    float *it_ref_dv = ref_patch_dv;
     float new_chi2 = 0.0;
     Jres.setZero();
-    for(int y=0; y<patch_size; ++y)
-    {
-      uint8_t* it = (uint8_t*) cur_img.data + (v_r+y-halfpatch_size_)*cur_step + u_r-halfpatch_size_;
-      for(int x=0; x<patch_size; ++x, ++it, ++it_ref, ++it_ref_dv)
-      {
-        float search_pixel = wTL*it[0] + wTR*it[1] + wBL*it[cur_step] + wBR*it[cur_step+1];
+    for (int y = 0; y < patch_size; ++y) {
+      uint8_t *it = (uint8_t *) cur_img.data + (v_r + y - halfpatch_size_) * cur_step + u_r - halfpatch_size_;
+      for (int x = 0; x < patch_size; ++x, ++it, ++it_ref, ++it_ref_dv) {
+        float search_pixel = wTL * it[0] + wTR * it[1] + wBL * it[cur_step] + wBR * it[cur_step + 1];
         float res = search_pixel - *it_ref + mean_diff;
-        Jres[0] -= res*(*it_ref_dv);
+        Jres[0] -= res * (*it_ref_dv);
         Jres[1] -= res;
-        new_chi2 += res*res;
+        new_chi2 += res * res;
       }
     }
 
-    if(iter > 0 && new_chi2 > chi2)
-    {
+    if (iter > 0 && new_chi2 > chi2) {
 #if SUBPIX_VERBOSE
       cout << "error increased." << endl;
 #endif
       // u -= update[0];
       // v -= update[1];
-      u -= update[0]*dir[0];
-      v -= update[0]*dir[1];
+      u -= update[0] * dir[0];
+      v -= update[0] * dir[1];
       break;
     }
 
     chi2 = new_chi2;
     update = Hinv * Jres;
-    u += update[0]*dir[0];
-    v += update[0]*dir[1];
+    u += update[0] * dir[0];
+    v += update[0] * dir[1];
     mean_diff += update[1];
 
 #if SUBPIX_VERBOSE
@@ -147,12 +144,11 @@ bool align1D(
 #endif
 
     // if(update[0]*update[0]+update[1]*update[1] < min_update_squared)
-    if(update[0]*update[0] < min_update_squared)
-    {
+    if (update[0] * update[0] < min_update_squared) {
 #if SUBPIX_VERBOSE
       cout << "converged." << endl;
 #endif
-      converged=true;
+      converged = true;
       break;
     }
   }
@@ -162,160 +158,156 @@ bool align1D(
 }
 
 bool align1D(
-    const cv::Mat& cur_img,
-    const Vector2f& dir,                  // direction in which the patch is allowed to move
-    float* ref_patch_with_border,
-    float* ref_patch,
+    const cv::Mat &cur_img,
+    const Vector2f &dir,                  // direction in which the patch is allowed to move
+    float *ref_patch_with_border,
+    float *ref_patch,
     const int n_iter,
-    Vector2d& cur_px_estimate,
-    double& h_inv,
-    float* cur_patch)
-{
-    const int halfpatch_size_ = 4;
-    const int patch_size = 8;
-    const int patch_area = 64;
-    bool converged=false;
+    Vector2d &cur_px_estimate,
+    double &h_inv,
+    float *cur_patch) {
+  const int halfpatch_size_ = 4;
+  const int patch_size = 8;
+  const int patch_area = 64;
+  bool converged = false;
 
-    // compute derivative of template and prepare inverse compositional
-    float ref_patch_dv[patch_area];
-    Matrix2f H; H.setZero();
+  // compute derivative of template and prepare inverse compositional
+  float ref_patch_dv[patch_area];
+  Matrix2f H;
+  H.setZero();
 
-    float grad_weight[patch_area];
+  float grad_weight[patch_area];
 
-    // compute gradient and hessian
-    const int ref_step = patch_size+2;
-    float* it_dv = ref_patch_dv;
-    float* it_weight = grad_weight;
-    Vector2f J;
-    for(int y=0; y<patch_size; ++y)
-    {
-        float* it = ref_patch_with_border + (y+1)*ref_step + 1;
-        for(int x=0; x<patch_size; ++x, ++it, ++it_dv, ++it_weight)
-        {
-            J[0] = 0.5*(dir[0]*(it[1] - it[-1]) + dir[1]*(it[ref_step] - it[-ref_step]));
-            J[1] = 1.;
-            *it_dv = J[0];
+  // compute gradient and hessian
+  const int ref_step = patch_size + 2;
+  float *it_dv = ref_patch_dv;
+  float *it_weight = grad_weight;
+  Vector2f J;
+  for (int y = 0; y < patch_size; ++y) {
+    float *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size; ++x, ++it, ++it_dv, ++it_weight) {
+      J[0] = 0.5 * (dir[0] * (it[1] - it[-1]) + dir[1] * (it[ref_step] - it[-ref_step]));
+      J[1] = 1.;
+      *it_dv = J[0];
 
-            *it_weight = sqrtf(250.0/(250.0+J[0]*J[0]));
+      *it_weight = sqrtf(250.0 / (250.0 + J[0] * J[0]));
 
-            H += J*J.transpose()*(*it_weight);
+      H += J * J.transpose() * (*it_weight);
+    }
+  }
+
+  for (int i = 0; i < 2; i++) H(i, i) *= (1 + 0.001);
+
+  h_inv = 1.0 / H(0, 0) * patch_size * patch_size;
+  Matrix2f Hinv = H.inverse();
+  float mean_diff = 0;
+
+  // Compute pixel location in new image:
+  float u = cur_px_estimate.x();
+  float v = cur_px_estimate.y();
+
+  // termination condition
+  const float min_update_squared = 0.01 * 0.01;
+  const int cur_step = cur_img.step.p[0];
+  float chi2 = 0;
+  Vector2f update;
+  update.setZero();
+  Vector2f Jres;
+  Jres.setZero();
+  for (int iter = 0; iter < n_iter; ++iter) {
+    float *cur_patch_ptr = cur_patch;
+
+    int u_r = floor(u);
+    int v_r = floor(v);
+    if (u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols - halfpatch_size_
+        || v_r >= cur_img.rows - halfpatch_size_)
+      break;
+
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+      return false;
+
+    // compute interpolation weights
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float wTL = (1.0 - subpix_x) * (1.0 - subpix_y);
+    float wTR = subpix_x * (1.0 - subpix_y);
+    float wBL = (1.0 - subpix_x) * subpix_y;
+    float wBR = subpix_x * subpix_y;
+
+    // loop through search_patch, interpolate
+    float *it_ref = ref_patch;
+    float *it_ref_dv = ref_patch_dv;
+    float *it_weight = grad_weight;
+    float new_chi2 = 0.0;
+    Jres.setZero();
+    for (int y = 0; y < patch_size; ++y) {
+      uint8_t *it = (uint8_t *) cur_img.data + (v_r + y - halfpatch_size_) * cur_step + u_r - halfpatch_size_;
+      for (int x = 0; x < patch_size; ++x, ++it, ++it_ref, ++it_ref_dv, ++it_weight) {
+        float search_pixel = wTL * it[0] + wTR * it[1] + wBL * it[cur_step] + wBR * it[cur_step + 1];
+        float res = search_pixel - *it_ref + mean_diff;
+
+        Jres[0] -= res * (*it_ref_dv) * (*it_weight);
+        Jres[1] -= res * (*it_weight);
+
+        new_chi2 += res * res * (*it_weight);
+
+        if (cur_patch != NULL) {
+          *cur_patch_ptr = search_pixel;
+          ++cur_patch_ptr;
         }
+
+      }
     }
 
-    for(int i=0;i<2;i++) H(i,i) *= (1+0.001);
+    // if(iter > 0 && new_chi2 > chi2)
+    // {
+    //     #if SUBPIX_VERBOSE
+    //         cout << "error increased." << endl;
+    //     #endif
+    //     // u -= update[0];
+    //     // v -= update[1];
+    //     u -= update[0]*dir[0];
+    //     v -= update[0]*dir[1];
+    //     break;
+    // }
 
-    h_inv = 1.0/H(0,0)*patch_size*patch_size;
-    Matrix2f Hinv = H.inverse();
-    float mean_diff = 0;
+    chi2 = new_chi2;
+    update = Hinv * Jres;
+    u += update[0] * dir[0];
+    v += update[0] * dir[1];
+    mean_diff += update[1];
 
-    // Compute pixel location in new image:
-    float u = cur_px_estimate.x();
-    float v = cur_px_estimate.y();
+#if SUBPIX_VERBOSE
+    cout << "Iter " << iter << ":"
+    << "\t u=" << u << ", v=" << v
+    << "\t update = " << update[0] << ", " << update[1]
+    << "\t new chi2 = " << new_chi2 << endl;
+#endif
 
-    // termination condition
-    const float min_update_squared = 0.01*0.01;
-    const int cur_step = cur_img.step.p[0];
-    float chi2 = 0;
-    Vector2f update; update.setZero();
-    Vector2f Jres; Jres.setZero();
-    for(int iter = 0; iter<n_iter; ++iter)
-    {
-        float* cur_patch_ptr = cur_patch;
+    if (update[0] * update[0] < min_update_squared) {
+#if SUBPIX_VERBOSE
+      cout << "converged." << endl;
+#endif
 
-        int u_r = floor(u);
-        int v_r = floor(v);
-        if(u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols-halfpatch_size_ || v_r >= cur_img.rows-halfpatch_size_)
-            break;
-
-        if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
-            return false;
-
-        // compute interpolation weights
-        float subpix_x = u-u_r;
-        float subpix_y = v-v_r;
-        float wTL = (1.0-subpix_x)*(1.0-subpix_y);
-        float wTR = subpix_x * (1.0-subpix_y);
-        float wBL = (1.0-subpix_x)*subpix_y;
-        float wBR = subpix_x * subpix_y;
-
-        // loop through search_patch, interpolate
-        float* it_ref = ref_patch;
-        float* it_ref_dv = ref_patch_dv;
-        float* it_weight = grad_weight;
-        float new_chi2 = 0.0;
-        Jres.setZero();
-        for(int y=0; y<patch_size; ++y)
-        {
-            uint8_t* it = (uint8_t*) cur_img.data + (v_r+y-halfpatch_size_)*cur_step + u_r-halfpatch_size_;
-            for(int x=0; x<patch_size; ++x, ++it, ++it_ref, ++it_ref_dv, ++it_weight)
-            {
-                float search_pixel = wTL*it[0] + wTR*it[1] + wBL*it[cur_step] + wBR*it[cur_step+1];
-                float res = search_pixel - *it_ref + mean_diff;
-
-                Jres[0] -= res*(*it_ref_dv)*(*it_weight);
-                Jres[1] -= res*(*it_weight);
-
-                new_chi2 += res*res*(*it_weight);
-
-                if(cur_patch != NULL) {
-                    *cur_patch_ptr = search_pixel;
-                    ++cur_patch_ptr;
-                }
-
-            }
-        }
-
-        // if(iter > 0 && new_chi2 > chi2)
-        // {
-        //     #if SUBPIX_VERBOSE
-        //         cout << "error increased." << endl;
-        //     #endif
-        //     // u -= update[0];
-        //     // v -= update[1];
-        //     u -= update[0]*dir[0];
-        //     v -= update[0]*dir[1];
-        //     break;
-        // }
-
-        chi2 = new_chi2;
-        update = Hinv * Jres;
-        u += update[0]*dir[0];
-        v += update[0]*dir[1];
-        mean_diff += update[1];
-
-        #if SUBPIX_VERBOSE
-            cout << "Iter " << iter << ":"
-            << "\t u=" << u << ", v=" << v
-            << "\t update = " << update[0] << ", " << update[1]
-            << "\t new chi2 = " << new_chi2 << endl;
-        #endif
-
-        if(update[0]*update[0] < min_update_squared)
-        {
-            #if SUBPIX_VERBOSE
-                cout << "converged." << endl;
-            #endif
-
-            converged=true;
-            break;
-        }
+      converged = true;
+      break;
     }
+  }
 
-    if(chi2 > 1000*patch_area) converged=false;
+  if (chi2 > 1000 * patch_area) converged = false;
 
-    cur_px_estimate << u, v;
-    return converged;
+  cur_px_estimate << u, v;
+  return converged;
 }
 
 bool align2D(
-    const cv::Mat& cur_img,
-    uint8_t* ref_patch_with_border,
-    uint8_t* ref_patch,
+    const cv::Mat &cur_img,
+    uint8_t *ref_patch_with_border,
+    uint8_t *ref_patch,
     const int n_iter,
-    Vector2d& cur_px_estimate,
+    Vector2d &cur_px_estimate,
     bool no_simd,
-    float* cur_patch)
-{ 
+    float *cur_patch) {
 // #ifdef __ARM_NEON__
 //   if(!no_simd)
 //     return align2D_NEON(cur_img, ref_patch_with_border, ref_patch, n_iter, cur_px_estimate);
@@ -324,29 +316,28 @@ bool align2D(
   const int halfpatch_size_ = 4;
   const int patch_size_ = 8;
   const int patch_area_ = 64;
-  bool converged=false;
+  bool converged = false;
 
   // compute derivative of template and prepare inverse compositional
   float __attribute__((__aligned__(16))) ref_patch_dx[patch_area_];
   float __attribute__((__aligned__(16))) ref_patch_dy[patch_area_];
-  Matrix3f H; H.setZero();
+  Matrix3f H;
+  H.setZero();
 
   // compute gradient and hessian
-  const int ref_step = patch_size_+2;
-  float* it_dx = ref_patch_dx;
-  float* it_dy = ref_patch_dy;
+  const int ref_step = patch_size_ + 2;
+  float *it_dx = ref_patch_dx;
+  float *it_dy = ref_patch_dy;
   Vector3f J;
-  for(int y=0; y<patch_size_; ++y)
-  {
-    uint8_t* it = ref_patch_with_border + (y+1)*ref_step + 1;
-    for(int x=0; x<patch_size_; ++x, ++it, ++it_dx, ++it_dy)
-    {
+  for (int y = 0; y < patch_size_; ++y) {
+    uint8_t *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size_; ++x, ++it, ++it_dx, ++it_dy) {
       J[0] = 0.5 * (it[1] - it[-1]);
       J[1] = 0.5 * (it[ref_step] - it[-ref_step]);
       J[2] = 1;
       *it_dx = J[0];
       *it_dy = J[1];
-      H += J*J.transpose();
+      H += J * J.transpose();
     }
   }
   Matrix3f Hinv = H.inverse();
@@ -357,51 +348,51 @@ bool align2D(
   float v = cur_px_estimate.y();
 
   // termination condition
-  const float min_update_squared = 0.03*0.03;
+  const float min_update_squared = 0.03 * 0.03;
   const int cur_step = cur_img.step.p[0];
   // float chi2 = 0;
-  Vector3f update; update.setZero();
-  Vector3f Jres; Jres.setZero();
+  Vector3f update;
+  update.setZero();
+  Vector3f Jres;
+  Jres.setZero();
   // float aff_a = 1, aff_b = 0;
-  for(int iter = 0; iter<n_iter; ++iter)
-  {
+  for (int iter = 0; iter < n_iter; ++iter) {
     int u_r = floor(u);
     int v_r = floor(v);
-    if(u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols-halfpatch_size_ || v_r >= cur_img.rows-halfpatch_size_)
+    if (u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols - halfpatch_size_
+        || v_r >= cur_img.rows - halfpatch_size_)
       break;
 
-    if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
       return false;
 
     // compute interpolation weights
-    float subpix_x = u-u_r;
-    float subpix_y = v-v_r;
-    float wTL = (1.0-subpix_x)*(1.0-subpix_y);
-    float wTR = subpix_x * (1.0-subpix_y);
-    float wBL = (1.0-subpix_x)*subpix_y;
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float wTL = (1.0 - subpix_x) * (1.0 - subpix_y);
+    float wTR = subpix_x * (1.0 - subpix_y);
+    float wBL = (1.0 - subpix_x) * subpix_y;
     float wBR = subpix_x * subpix_y;
 
     // loop through search_patch, interpolate
-    uint8_t* it_ref = ref_patch;
-    float* it_ref_dx = ref_patch_dx;
-    float* it_ref_dy = ref_patch_dy;
+    uint8_t *it_ref = ref_patch;
+    float *it_ref_dx = ref_patch_dx;
+    float *it_ref_dy = ref_patch_dy;
     // float new_chi2 = 0.0;
     Jres.setZero();
     // float sxx=0, syy=0, sxy=0, sx=0, sy=0, sw=0;
-    for(int y=0; y<patch_size_; ++y)
-    {
-      uint8_t* it = (uint8_t*) cur_img.data + (v_r+y-halfpatch_size_)*cur_step + u_r-halfpatch_size_;
-      for(int x=0; x<patch_size_; ++x, ++it, ++it_ref, ++it_ref_dx, ++it_ref_dy)
-      {
-        float search_pixel = wTL*it[0] + wTR*it[1] + wBL*it[cur_step] + wBR*it[cur_step+1];
+    for (int y = 0; y < patch_size_; ++y) {
+      uint8_t *it = (uint8_t *) cur_img.data + (v_r + y - halfpatch_size_) * cur_step + u_r - halfpatch_size_;
+      for (int x = 0; x < patch_size_; ++x, ++it, ++it_ref, ++it_ref_dx, ++it_ref_dy) {
+        float search_pixel = wTL * it[0] + wTR * it[1] + wBL * it[cur_step] + wBR * it[cur_step + 1];
         // float res = search_pixel - (*it_ref)*aff_a+aff_b + mean_diff;
         // Jres[0] -= res*(*it_ref_dx * aff_a);
         // Jres[1] -= res*(*it_ref_dy * aff_a);
         // Jres[2] -= res*aff_a;
-        
+
         float res = search_pixel - (*it_ref) + mean_diff;
-        Jres[0] -= res*(*it_ref_dx);
-        Jres[1] -= res*(*it_ref_dy);
+        Jres[0] -= res * (*it_ref_dx);
+        Jres[1] -= res * (*it_ref_dy);
         Jres[2] -= res;
         // const float weight_aff = fabsf(res) < 10.0f? fabsf(res) < 5.0f? 1.0 : 5.0f / fabsf(res) : 0; 
         // sxx += (*it_ref)*(*it_ref)*weight_aff; 
@@ -412,8 +403,7 @@ bool align2D(
         // sw += weight_aff;
 
         // new_chi2 += res*res;
-        if(iter == n_iter-1 && cur_patch != NULL)
-        {
+        if (iter == n_iter - 1 && cur_patch != NULL) {
           *cur_patch = search_pixel;
           ++cur_patch;
         }
@@ -439,7 +429,7 @@ bool align2D(
     // aff_a = sqrtf((syy - sy*sy/sw) / (sxx - sx*sx/sw));
     // aff_b = (sy - aff_a*sx)/sw;
 
-    
+
 #if SUBPIX_VERBOSE
     cout << "Iter " << iter << ":"
          << "\t u=" << u << ", v=" << v
@@ -447,12 +437,11 @@ bool align2D(
          << "\t new chi2 = " << new_chi2 << endl;
 #endif
 
-    if(update[0]*update[0]+update[1]*update[1] < min_update_squared)
-    {
+    if (update[0] * update[0] + update[1] * update[1] < min_update_squared) {
 #if SUBPIX_VERBOSE
       cout << "converged." << endl;
 #endif
-      converged=true;
+      converged = true;
       break;
     }
   }
@@ -460,165 +449,171 @@ bool align2D(
   cur_px_estimate << u, v;
   return converged;
 }
-
+/********************************
+ * @ function:    使用逆向组合法, 进行2D图像对齐
+ *
+ * @ param:       const cv::Mat& cur_img            cur_image在searchlevel的金字塔图像
+ *                float* ref_patch_with_border    从ref变换到cur上的参考patch_border(不准确的, 带1个大的边界)!!
+ *                float* ref_patch                从ref变换到cur上的参考patch(不准确的)
+ *                const int n_iter                  最大迭代次数
+ *                Vector2d& cur_px_estimate         当前估计的cur上特征像素位置
+ *                bool no_simd
+ *
+ * @ note:        优化方程: p = min Sum_x[ T(x+△x,y+△y) + △i - I(x,y) + i]^2
+ *                优化变量: p = [x, y, i]
+ *                其他的和1D情况相同
+ *******************************/
 bool align2D(
-    const cv::Mat& cur_img,
-    float* ref_patch_with_border,
-    float* ref_patch,
-    const int n_iter,
-    Vector2d& cur_px_estimate,
-    bool no_simd,
-    float* cur_patch)
-{ 
-    const int halfpatch_size_ = 4;
-    const int patch_size_ = 8;
-    const int patch_area_ = 64;
-    bool converged=false;
+    const cv::Mat &cur_img, float *ref_patch_with_border, float *ref_patch,
+    const int n_iter, Vector2d &cur_px_estimate, bool no_simd, float *cur_patch) {
 
-    // compute derivative of template and prepare inverse compositional
-    float ref_patch_dx[patch_area_];
-    float ref_patch_dy[patch_area_];
-    Matrix3f H; H.setZero();
+  const int halfpatch_size_ = 4;
+  const int patch_size_ = 8;
+  const int patch_area_ = 64;
+  bool converged = false;
 
-    float grad_weight[patch_area_];
+  // compute derivative of template and prepare inverse compositional
+  float ref_patch_dx[patch_area_];
+  float ref_patch_dy[patch_area_];
+  Matrix3f H;
+  H.setZero();
 
-    // compute gradient and hessian
-    const int ref_step = patch_size_+2;
-    float* it_dx = ref_patch_dx;
-    float* it_dy = ref_patch_dy;
-    float* it_weight = grad_weight;
+  float grad_weight[patch_area_];
 
-    Vector3f J;
-    for(int y=0; y<patch_size_; ++y)
-    {
-        float* it = ref_patch_with_border + (y+1)*ref_step + 1;
-        for(int x=0; x<patch_size_; ++x, ++it, ++it_dx, ++it_dy, ++it_weight)
-        {
-            J[0] = 0.5 * (it[1] - it[-1]);
-            J[1] = 0.5 * (it[ref_step] - it[-ref_step]);
-            J[2] = 1.;
-            *it_dx = J[0];
-            *it_dy = J[1];
+  // compute gradient and hessian
+  const int ref_step = patch_size_ + 2;
+  float *it_dx = ref_patch_dx;
+  float *it_dy = ref_patch_dy;
+  float *it_weight = grad_weight;
 
-            *it_weight = sqrtf(250.0/(250.0+(J[0]*J[0]+J[1]*J[1])));
+  Vector3f J;
+  // 行循环
+  for (int y = 0; y < patch_size_; ++y) {
+    float *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size_; ++x, ++it, ++it_dx, ++it_dy, ++it_weight) {
+      J[0] = 0.5 * (it[1] - it[-1]); // x方向导数
+      J[1] = 0.5 * (it[ref_step] - it[-ref_step]); // y方向导数
+      J[2] = 1.; // 亮度误差导数
+      *it_dx = J[0];
+      *it_dy = J[1];
 
-            H += J*J.transpose()*(*it_weight);
+      *it_weight = sqrtf(250.0 / (250.0 + (J[0] * J[0] + J[1] * J[1])));
+
+      H += J * J.transpose() * (*it_weight);
+    }
+  }
+
+  for (int i = 0; i < 3; i++) H(i, i) *= (1 + 0.001);
+
+  Matrix3f Hinv = H.inverse();
+
+
+
+  // Compute pixel location in new image:
+  float u = cur_px_estimate.x();
+  float v = cur_px_estimate.y();
+
+  // termination condition
+  const float min_update_squared = 0.03 * 0.03;
+  const int cur_step = cur_img.step.p[0];
+
+  float mean_diff = 0;
+  float chi2 = 0;
+  Vector3f update;
+  update.setZero();
+  Vector3f Jres;
+  Jres.setZero();
+
+  for (int iter = 0; iter < n_iter; ++iter) {
+    float *cur_patch_ptr = cur_patch;
+
+    int u_r = floor(u);
+    int v_r = floor(v);
+    if (u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols - halfpatch_size_
+        || v_r >= cur_img.rows - halfpatch_size_)
+      break;
+
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+      return false;
+
+    // compute interpolation weights
+    // 双线性插值
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float wTL = (1.0 - subpix_x) * (1.0 - subpix_y);
+    float wTR = subpix_x * (1.0 - subpix_y);
+    float wBL = (1.0 - subpix_x) * subpix_y;
+    float wBR = subpix_x * subpix_y;
+
+    // loop through search_patch, interpolate
+    float *it_ref = ref_patch;
+    float *it_ref_dx = ref_patch_dx;
+    float *it_ref_dy = ref_patch_dy;
+    float *it_weight = grad_weight;
+    float new_chi2 = 0.0;
+    Jres.setZero();
+    for (int y = 0; y < patch_size_; ++y) {
+      uint8_t *it = (uint8_t *) cur_img.data + (v_r + y - halfpatch_size_) * cur_step + u_r - halfpatch_size_;
+      for (int x = 0; x < patch_size_; ++x, ++it, ++it_ref, ++it_ref_dx, ++it_ref_dy, ++it_weight) {
+
+        float search_pixel = wTL * it[0] + wTR * it[1] + wBL * it[cur_step] + wBR * it[cur_step + 1];
+        // 残差e，需要不断更新
+        float res = search_pixel - (*it_ref) + mean_diff;
+
+        Jres[0] -= res * (*it_ref_dx) * (*it_weight);
+        Jres[1] -= res * (*it_ref_dy) * (*it_weight);
+        Jres[2] -= res * (*it_weight);
+
+        new_chi2 += res * res * (*it_weight);
+
+        if (cur_patch != NULL) {
+          *cur_patch_ptr = search_pixel;
+          ++cur_patch_ptr;
         }
+      }
     }
 
-    for(int i=0;i<3;i++) H(i,i) *= (1+0.001);
+    chi2 = new_chi2;
+    update = Hinv * Jres;
+    u += update[0];
+    v += update[1];
+    mean_diff += update[2];
 
-    Matrix3f Hinv = H.inverse();
+#if SUBPIX_VERBOSE
+    cout << "Iter " << iter << ":"
+    << "\t u=" << u << ", v=" << v
+    << "\t update = " << update[0] << ", " << update[1]
+    << "\t new chi2 = " << new_chi2 << endl;
+#endif
 
-    
-
-    // Compute pixel location in new image:
-    float u = cur_px_estimate.x();
-    float v = cur_px_estimate.y();
-
-    // termination condition
-    const float min_update_squared = 0.03*0.03;
-    const int cur_step = cur_img.step.p[0];
-    
-    float mean_diff = 0;
-    float chi2 = 0;
-    Vector3f update; update.setZero();
-    Vector3f Jres; Jres.setZero();
-  
-    for(int iter = 0; iter<n_iter; ++iter)
-    {
-        float* cur_patch_ptr = cur_patch;
-
-        int u_r = floor(u);
-        int v_r = floor(v);
-        if(u_r < halfpatch_size_ || v_r < halfpatch_size_ || u_r >= cur_img.cols-halfpatch_size_ || v_r >= cur_img.rows-halfpatch_size_)
-            break;
-
-        if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
-            return false;
-
-        // compute interpolation weights
-        float subpix_x = u-u_r;
-        float subpix_y = v-v_r;
-        float wTL = (1.0-subpix_x)*(1.0-subpix_y);
-        float wTR = subpix_x * (1.0-subpix_y);
-        float wBL = (1.0-subpix_x)*subpix_y;
-        float wBR = subpix_x * subpix_y;
-
-        // loop through search_patch, interpolate
-        float* it_ref = ref_patch;
-        float* it_ref_dx = ref_patch_dx;
-        float* it_ref_dy = ref_patch_dy;
-        float* it_weight = grad_weight;
-        float new_chi2 = 0.0;
-        Jres.setZero();
-        for(int y=0; y<patch_size_; ++y)
-        {
-            uint8_t* it = (uint8_t*) cur_img.data + (v_r+y-halfpatch_size_)*cur_step + u_r-halfpatch_size_;
-            for(int x=0; x<patch_size_; ++x, ++it, ++it_ref, ++it_ref_dx, ++it_ref_dy, ++it_weight)
-            {
-                float search_pixel = wTL*it[0] + wTR*it[1] + wBL*it[cur_step] + wBR*it[cur_step+1];
-                float res = search_pixel - (*it_ref) + mean_diff;
-
-                Jres[0] -= res*(*it_ref_dx)*(*it_weight);
-                Jres[1] -= res*(*it_ref_dy)*(*it_weight);
-                Jres[2] -= res*(*it_weight);
-
-                new_chi2 += res*res*(*it_weight);
-
-                if(cur_patch != NULL) {
-                    *cur_patch_ptr = search_pixel;
-                    ++cur_patch_ptr;
-                }
-            }
-        }
-
-
-        chi2 = new_chi2;
-        update = Hinv * Jres;
-        u += update[0];
-        v += update[1];
-        mean_diff += update[2];
-
-
-        #if SUBPIX_VERBOSE
-            cout << "Iter " << iter << ":"
-            << "\t u=" << u << ", v=" << v
-            << "\t update = " << update[0] << ", " << update[1]
-            << "\t new chi2 = " << new_chi2 << endl;
-        #endif
-
-        if(update[0]*update[0]+update[1]*update[1] < min_update_squared)
-        {
-            #if SUBPIX_VERBOSE
-                cout << "converged." << endl;
-            #endif
-            converged=true;
-            break;
-        }
+    if (update[0] * update[0] + update[1] * update[1] < min_update_squared) {
+#if SUBPIX_VERBOSE
+      cout << "converged." << endl;
+#endif
+      converged = true;
+      break;
     }
+  }
 
-    if(chi2 > 1000*patch_area_) converged = false;
+  if (chi2 > 1000 * patch_area_) converged = false;
 
-    cur_px_estimate << u, v;
-    return converged;
+  cur_px_estimate << u, v;
+  return converged;
 }
 
-
-#define  DESCALE(x,n)     (((x) + (1 << ((n)-1))) >> (n)) // rounds to closest integer and descales
+#define  DESCALE(x, n)     (((x) + (1 << ((n)-1))) >> (n)) // rounds to closest integer and descales
 
 bool align2D_SSE2(
-    const cv::Mat& cur_img,
-    uint8_t* ref_patch_with_border,
-    uint8_t* ref_patch,
+    const cv::Mat &cur_img,
+    uint8_t *ref_patch_with_border,
+    uint8_t *ref_patch,
     const int n_iter,
-    Vector2d& cur_px_estimate)
-{
+    Vector2d &cur_px_estimate) {
   // TODO: This function should not be used as the alignment is not robust to illumination changes!
   const int halfpatch_size = 4;
   const int patch_size = 8;
   const int patch_area = 64;
-  bool converged=false;
+  bool converged = false;
   const int W_BITS = 14;
 
   // compute derivative of template and prepare inverse compositional
@@ -626,22 +621,20 @@ bool align2D_SSE2(
   int16_t __attribute__((__aligned__(16))) ref_patch_dy[patch_area];
 
   // compute gradient and hessian
-  const int ref_step = patch_size+2;
-  int16_t* it_dx = ref_patch_dx;
-  int16_t* it_dy = ref_patch_dy;
-  float A11=0, A12=0, A22=0;
-  for(int y=0; y<patch_size; ++y)
-  {
-    uint8_t* it = ref_patch_with_border + (y+1)*ref_step + 1;
-    for(int x=0; x<patch_size; ++x, ++it, ++it_dx, ++it_dy)
-    {
+  const int ref_step = patch_size + 2;
+  int16_t *it_dx = ref_patch_dx;
+  int16_t *it_dy = ref_patch_dy;
+  float A11 = 0, A12 = 0, A22 = 0;
+  for (int y = 0; y < patch_size; ++y) {
+    uint8_t *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size; ++x, ++it, ++it_dx, ++it_dy) {
       int16_t dx = static_cast<int16_t>(it[1]) - it[-1];
       int16_t dy = static_cast<int16_t>(it[ref_step]) - it[-ref_step];
       *it_dx = dx;
       *it_dy = dy;  // we are missing a factor 1/2
-      A11 += static_cast<float>(dx*dx); // we are missing a factor 1/4
-      A12 += static_cast<float>(dx*dy);
-      A22 += static_cast<float>(dy*dy);
+      A11 += static_cast<float>(dx * dx); // we are missing a factor 1/4
+      A12 += static_cast<float>(dx * dy);
+      A22 += static_cast<float>(dy * dy);
     }
   }
 
@@ -650,32 +643,32 @@ bool align2D_SSE2(
   float v = cur_px_estimate.y();
 
   // termination condition
-  const float min_update_squared = 0.03*0.03;
+  const float min_update_squared = 0.03 * 0.03;
   const int cur_step = cur_img.step.p[0];
-  const float Dinv = 1.0f/(A11*A22 - A12*A12); // we are missing an extra factor 16
+  const float Dinv = 1.0f / (A11 * A22 - A12 * A12); // we are missing an extra factor 16
   float chi2 = 0;
   float update_u = 0, update_v = 0;
 
-  for(int iter = 0; iter<n_iter; ++iter)
-  {
+  for (int iter = 0; iter < n_iter; ++iter) {
     int u_r = floor(u);
     int v_r = floor(v);
-    if(u_r < halfpatch_size || v_r < halfpatch_size || u_r >= cur_img.cols-halfpatch_size || v_r >= cur_img.rows-halfpatch_size)
+    if (u_r < halfpatch_size || v_r < halfpatch_size || u_r >= cur_img.cols - halfpatch_size
+        || v_r >= cur_img.rows - halfpatch_size)
       break;
 
-    if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
       return false;
 
-    float subpix_x = u-u_r;
-    float subpix_y = v-v_r;
-    float b1=0, b2=0;
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float b1 = 0, b2 = 0;
     float new_chi2 = 0.0;
 
 #ifdef __SSE2__
     // compute bilinear interpolation weights
-    int wTL = static_cast<int>((1.0f-subpix_x)*(1.0f-subpix_y)*(1 << W_BITS));
-    int wTR = static_cast<int>(subpix_x * (1.0f-subpix_y)*(1 << W_BITS));
-    int wBL = static_cast<int>((1.0f-subpix_x)*subpix_y*(1 << W_BITS));
+    int wTL = static_cast<int>((1.0f - subpix_x) * (1.0f - subpix_y) * (1 << W_BITS));
+    int wTR = static_cast<int>(subpix_x * (1.0f - subpix_y) * (1 << W_BITS));
+    int wBL = static_cast<int>((1.0f - subpix_x) * subpix_y * (1 << W_BITS));
     int wBR = (1 << W_BITS) - wTL - wTR - wBL;
 
     __m128i qw0 = _mm_set1_epi32(wTL + (wTR << 16)); // Sets the 4 signed 32-bit integer values to [wTL, wTR].
@@ -683,20 +676,19 @@ bool align2D_SSE2(
     __m128i z = _mm_setzero_si128();
     __m128 qb0 = _mm_setzero_ps(); // 4 floats
     __m128 qb1 = _mm_setzero_ps(); // 4 floats
-    __m128i qdelta = _mm_set1_epi32(1 << (W_BITS-1));
-    for(int y=0; y<patch_size; ++y)
-    {
-      const uint8_t* it  = (const uint8_t*) cur_img.data + (v_r+y-halfpatch_size)*cur_step + u_r-halfpatch_size;
+    __m128i qdelta = _mm_set1_epi32(1 << (W_BITS - 1));
+    for (int y = 0; y < patch_size; ++y) {
+      const uint8_t *it = (const uint8_t *) cur_img.data + (v_r + y - halfpatch_size) * cur_step + u_r - halfpatch_size;
 
       // Iptr is aligned!
       //__m128i diff0 = _mm_load_si128((const __m128i*)(ref_patch + y*8));
-      __m128i diff = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i*)(ref_patch + y*8)), z);
+      __m128i diff = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *) (ref_patch + y * 8)), z);
 
       // load the lower 64 bits and unpack [8u 0 8u 0..]
-      __m128i v00 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i*)(it)), z);
-      __m128i v01 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i*)(it + 1)), z);
-      __m128i v10 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i*)(it + cur_step)), z);
-      __m128i v11 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i*)(it + cur_step + 1)), z);
+      __m128i v00 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *) (it)), z);
+      __m128i v01 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *) (it + 1)), z);
+      __m128i v10 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *) (it + cur_step)), z);
+      __m128i v11 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *) (it + cur_step + 1)), z);
 
       // interpolate top row and bottom row
       // _mm_unpacklo_epi16: Interleaves the lower 4 signed or unsigned 16-bit integers in a with the lower 4 signed or unsigned 16-bit integers in b.
@@ -715,8 +707,8 @@ bool align2D_SSE2(
       diff = _mm_subs_epi16(_mm_packs_epi32(t0, t1), diff);
 
       // load gradient dX and dY, both are aligned!
-      v00 = _mm_load_si128((const __m128i*)(ref_patch_dx + y*patch_size)); // [dx1, dx2, dx3, dx4 ...]
-      v01 = _mm_load_si128((const __m128i*)(ref_patch_dy + y*patch_size)); // [dy1, dy2, dy3, dy4 ...]
+      v00 = _mm_load_si128((const __m128i *) (ref_patch_dx + y * patch_size)); // [dx1, dx2, dx3, dx4 ...]
+      v01 = _mm_load_si128((const __m128i *) (ref_patch_dy + y * patch_size)); // [dy1, dy2, dy3, dy4 ...]
 
       // _mm_mulhi_epi16: Multiplies the 8 signed 16-bit integers from a by the 8 signed 16-bit integers from b.
       v10 = _mm_mullo_epi16(v00, diff); // Packs the lower 16 bits of the 8 signed 32-bit results. [15:0]
@@ -741,14 +733,15 @@ bool align2D_SSE2(
 
     float __attribute__((__aligned__(16))) buf[4];
     _mm_store_ps(buf, qb0);
-    b1 += buf[0]+buf[1]+buf[2]+buf[3];
+    b1 += buf[0] + buf[1] + buf[2] + buf[3];
     _mm_store_ps(buf, qb1);
-    b2 += buf[0]+buf[1]+buf[2]+buf[3];
+    b2 += buf[0] + buf[1] + buf[2] + buf[3];
 #endif
 
     // compute -A^-1*b
-    update_u = ((A12*b2 - A22*b1) * Dinv)*2; // * 2 to compensate because above, we did not compute the derivative correctly
-    update_v = ((A12*b1 - A11*b2) * Dinv)*2;
+    update_u = ((A12 * b2 - A22 * b1) * Dinv)
+        * 2; // * 2 to compensate because above, we did not compute the derivative correctly
+    update_v = ((A12 * b1 - A11 * b2) * Dinv) * 2;
     u += update_u;
     v += update_v;
 
@@ -759,12 +752,11 @@ bool align2D_SSE2(
          << "\t new chi2 = " << new_chi2 << endl;
 #endif
 
-    if(update_u*update_u+update_v*update_v < min_update_squared)
-    {
+    if (update_u * update_u + update_v * update_v < min_update_squared) {
 #if SUBPIX_VERBOSE
       cout << "converged." << endl;
 #endif
-      converged=true;
+      converged = true;
       break;
     }
     chi2 = new_chi2;
@@ -774,37 +766,35 @@ bool align2D_SSE2(
   return converged;
 }
 
-bool align2D_NEON (
-    const cv::Mat& cur_img,
-    uint8_t* ref_patch_with_border,
-    uint8_t* ref_patch,
+bool align2D_NEON(
+    const cv::Mat &cur_img,
+    uint8_t *ref_patch_with_border,
+    uint8_t *ref_patch,
     const int n_iter,
-    Vector2d& cur_px_estimate)
-{
+    Vector2d &cur_px_estimate) {
   const int halfpatch_size = 4;
   const int patch_size = 8;
   const int patch_area = 64;
-  bool converged=false;
+  bool converged = false;
   const int W_BITS = 14;
 
   // compute derivative of template and prepare inverse compositional
   int16_t __attribute__((__aligned__(16))) ref_patch_dx[patch_area];
   int16_t __attribute__((__aligned__(16))) ref_patch_dy[patch_area];
-  
+
   // compute gradient and hessian
-  const int ref_step = patch_size+2;
-  int16_t* it_dx = ref_patch_dx;
-  int16_t* it_dy = ref_patch_dy;
-  Matrix3f H; H.setZero();
-  for(int y=0; y<patch_size; ++y)
-  {
-    uint8_t* it = ref_patch_with_border + (y+1)*ref_step + 1;
-    for(int x=0; x<patch_size; ++x, ++it, ++it_dx, ++it_dy)
-    {
+  const int ref_step = patch_size + 2;
+  int16_t *it_dx = ref_patch_dx;
+  int16_t *it_dy = ref_patch_dy;
+  Matrix3f H;
+  H.setZero();
+  for (int y = 0; y < patch_size; ++y) {
+    uint8_t *it = ref_patch_with_border + (y + 1) * ref_step + 1;
+    for (int x = 0; x < patch_size; ++x, ++it, ++it_dx, ++it_dy) {
       *it_dx = static_cast<int16_t>(it[1] - it[-1]);
       *it_dy = static_cast<int16_t>(it[ref_step] - it[-ref_step]); // divide by 2 missing
       Vector3f J(*it_dx, *it_dy, 1.0f);
-      H += J*J.transpose();
+      H += J * J.transpose();
     }
   }
   Matrix3f Hinv = H.inverse();
@@ -815,23 +805,23 @@ bool align2D_NEON (
   float v = cur_px_estimate.y();
 
   // termination condition
-  const float min_update_squared = 0.03*0.03;
+  const float min_update_squared = 0.03 * 0.03;
   const int cur_step = cur_img.step.p[0];
   Vector3f update;
   Vector3f Jres;
-  for(int iter = 0; iter<n_iter; ++iter)
-  {
+  for (int iter = 0; iter < n_iter; ++iter) {
     int u_r = floor(u);
     int v_r = floor(v);
-    if(u_r < halfpatch_size || v_r < halfpatch_size || u_r >= cur_img.cols-halfpatch_size || v_r >= cur_img.rows-halfpatch_size)
+    if (u_r < halfpatch_size || v_r < halfpatch_size || u_r >= cur_img.cols - halfpatch_size
+        || v_r >= cur_img.rows - halfpatch_size)
       break;
 
-    if(isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
+    if (isnan(u) || isnan(v)) // TODO very rarely this can happen, maybe H is singular? should not be at corner.. check
       return false;
 
-    float subpix_x = u-u_r;
-    float subpix_y = v-v_r;
-    float b1=0, b2=0;
+    float subpix_x = u - u_r;
+    float subpix_y = v - v_r;
+    float b1 = 0, b2 = 0;
 
 #ifdef __ARM_NEON__
     const int SHIFT_BITS = 7;
@@ -912,12 +902,11 @@ bool align2D_NEON (
          << "\t update = " << update[0] << ", " << update[1] << endl;
 #endif
 
-    if(update[0]*update[0]+update[1]*update[1] < min_update_squared)
-    {
+    if (update[0] * update[0] + update[1] * update[1] < min_update_squared) {
 #if SUBPIX_VERBOSE
       cout << "converged." << endl;
 #endif
-      converged=true;
+      converged = true;
       break;
     }
   }
@@ -925,7 +914,6 @@ bool align2D_NEON (
   cur_px_estimate << u, v;
   return converged;
 }
-
 
 } // namespace feature_alignment
 } // namespace hso

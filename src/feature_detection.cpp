@@ -400,14 +400,14 @@ void FeatureExtractor::detect(
   // extFeatures_：提取
   needFeatures_ = nFeatures_ - extFeatures_;
 
-  if (last_frame != nullptr) {
+  if (last_frame != NULL) {
     // 初始化完成之后才会进入这里
     m_egde_filter = true;
     m_last_frame = last_frame;
     findEpiHole();
   } else {
     m_egde_filter = false;
-    m_last_frame = nullptr;
+    m_last_frame = NULL;
   }
 
   featurePerLevel_.resize(nLevels_);
@@ -1099,7 +1099,7 @@ void FeatureExtractor::setExistingFeatures(const Features &fts) {
 }
 
 void FeatureExtractor::findEpiHole() {
-  assert(m_last_frame != nullptr);
+  assert(m_last_frame != NULL);
   //.get()函数返回存储的指针
   assert(m_last_frame == frame_->m_last_frame.get());
   epi_hole = frame_->w2c(m_last_frame->pos());

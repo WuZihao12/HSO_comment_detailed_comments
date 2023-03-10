@@ -48,11 +48,10 @@ namespace hso {
 namespace ba {
 
 void twoViewBA(
-    Frame* frame1,
-    Frame* frame2,
+    Frame *frame1,
+    Frame *frame2,
     double reproj_thresh,
-    Map* map)
-{
+    Map *map) {
   // scale reprojection threshold in pixels to unit plane
   reproj_thresh /= frame1->cam_->errorMultiplier2();
 
@@ -64,29 +63,38 @@ void twoViewBA(
   size_t v_id = 0;
 
   // New Keyframe Vertex 1: This Keyframe is set to fixed!
-  g2oFrameSE3* v_frame1 = createG2oFrameSE3(frame1, v_id++, true);
+  g2oFrameSE3 *v_frame1 = createG2oFrameSE3(frame1, v_id++, true);
   optimizer.addVertex(v_frame1);
 
   // New Keyframe Vertex 2
-  g2oFrameSE3* v_frame2 = createG2oFrameSE3(frame2, v_id++, false);
+  g2oFrameSE3 *v_frame2 = createG2oFrameSE3(frame2, v_id++, false);
   optimizer.addVertex(v_frame2);
 
   // Create Point Vertices
-  for(Features::iterator it_ftr=frame1->fts_.begin(); it_ftr!=frame1->fts_.end(); ++it_ftr)
-  {
-    Point* pt = (*it_ftr)->point;
-    if(pt == NULL) continue;
-    
-    g2oPoint* v_pt = createG2oPoint(pt->pos_, v_id++, false);
+  for (Features::iterator it_ftr = frame1->fts_.begin(); it_ftr != frame1->fts_.end(); ++it_ftr) {
+    Point *pt = (*it_ftr)->point;
+    if (pt == NULL) continue;
+
+    g2oPoint *v_pt = createG2oPoint(pt->pos_, v_id++, false);
     optimizer.addVertex(v_pt);
     pt->v_pt_ = v_pt;
-    g2oEdgeSE3* e = createG2oEdgeSE3(v_frame1, v_pt, hso::project2d((*it_ftr)->f), true, reproj_thresh*Config::lobaRobustHuberWidth());
+    g2oEdgeSE3 *e = createG2oEdgeSE3(v_frame1,
+                                     v_pt,
+                                     hso::project2d((*it_ftr)->f),
+                                     true,
+                                     reproj_thresh * Config::lobaRobustHuberWidth());
     optimizer.addEdge(e);
-    edges.push_back(EdgeContainerSE3(e, frame1, *it_ftr)); // TODO feature now links to frame, so we can simplify edge container!
+    edges.push_back(EdgeContainerSE3(e,
+                                     frame1,
+                                     *it_ftr)); // TODO feature now links to frame, so we can simplify edge container!
 
     // find at which index the second frame observes the point
-    Feature* ftr_frame2 = pt->findFrameRef(frame2);
-    e = createG2oEdgeSE3(v_frame2, v_pt, hso::project2d(ftr_frame2->f), true, reproj_thresh*Config::lobaRobustHuberWidth());
+    Feature *ftr_frame2 = pt->findFrameRef(frame2);
+    e = createG2oEdgeSE3(v_frame2,
+                         v_pt,
+                         hso::project2d(ftr_frame2->f),
+                         true,
+                         reproj_thresh * Config::lobaRobustHuberWidth());
     optimizer.addEdge(e);
     edges.push_back(EdgeContainerSE3(e, frame2, ftr_frame2));
   }
@@ -103,22 +111,19 @@ void twoViewBA(
   frame2->T_f_w_.translation() = v_frame2->estimate().translation();
 
   // Update Mappoint Positions
-  for(Features::iterator it=frame1->fts_.begin(); it!=frame1->fts_.end(); ++it)
-  {
-    if((*it)->point == NULL)
-     continue;
+  for (Features::iterator it = frame1->fts_.begin(); it != frame1->fts_.end(); ++it) {
+    if ((*it)->point == NULL)
+      continue;
     (*it)->point->pos_ = (*it)->point->v_pt_->estimate();
     (*it)->point->v_pt_ = NULL;
   }
 
   // Find Mappoints with too large reprojection error
-  const double reproj_thresh_squared = reproj_thresh*reproj_thresh;
+  const double reproj_thresh_squared = reproj_thresh * reproj_thresh;
   size_t n_incorrect_edges = 0;
-  for(list<EdgeContainerSE3>::iterator it_e = edges.begin(); it_e != edges.end(); ++it_e)
-    if(it_e->edge->chi2() > reproj_thresh_squared)
-    {
-      if(it_e->feature->point != NULL)
-      {
+  for (list<EdgeContainerSE3>::iterator it_e = edges.begin(); it_e != edges.end(); ++it_e)
+    if (it_e->edge->chi2() > reproj_thresh_squared) {
+      if (it_e->feature->point != NULL) {
         map->safeDeletePoint(it_e->feature->point);
         it_e->feature->point = NULL;
       }
@@ -128,207 +133,205 @@ void twoViewBA(
   printf("2-View BA: Wrong edges =  %zu\n", n_incorrect_edges);
 }
 
+/********************************
+ * @ function:
+ *
+ * @ param:     Frame* center_kf                  当前帧
+ *              set<FramePtr>* core_kfs           待优化的核心关键帧
+ *              Map* map                          地图
+ *              size_t& n_incorrect_edges_1
+ *              size_t& n_incorrect_edges_2       重投影误差过大的边数目
+ *              double& init_error,
+ *              double& final_error
+ *
+ * @ note:
+ *******************************/
 void localBA(
-    Frame* center_kf,
-    set<Frame*>* core_kfs,
-    Map* map,
-    size_t& n_incorrect_edges_1,
-    size_t& n_incorrect_edges_2,
-    double& init_error,
-    double& final_error,
-    FramePtr LastKeyFrame)
-{
+    Frame *center_kf,
+    set<Frame *> *core_kfs,
+    Map *map,
+    size_t &n_incorrect_edges_1,
+    size_t &n_incorrect_edges_2,
+    double &init_error,
+    double &final_error,
+    FramePtr LastKeyFrame) {
 
-    // init g2o
-    g2o::SparseOptimizer optimizer;
-    setupG2o(&optimizer);
+  // init g2o
+  g2o::SparseOptimizer optimizer;
+  setupG2o(&optimizer);
 
-    list<EdgeContainerSE3> edges;
-    list<EdgeContainerEdgelet> edgelets;
-    set<Point*> mps;
-    list<Frame*> neib_kfs;
-    size_t v_id = 0;
-    size_t n_mps = 0;
-    size_t n_fix_kfs = 0;
-    size_t n_var_kfs = 1;
-    size_t n_edges = 0;
-    n_incorrect_edges_1 = 0;
-    n_incorrect_edges_2 = 0;
+  list<EdgeContainerSE3> edges;
+  list<EdgeContainerEdgelet> edgelets;
+  set<Point *> mps;
+  list<Frame *> neib_kfs;
+  size_t v_id = 0;
+  size_t n_mps = 0;
+  size_t n_fix_kfs = 0;
+  size_t n_var_kfs = 1;
+  size_t n_edges = 0;
+  n_incorrect_edges_1 = 0;
+  n_incorrect_edges_2 = 0;
 
-    // Add all core keyframes
-    for(set<Frame*>::iterator it_kf = core_kfs->begin(); it_kf != core_kfs->end(); ++it_kf)
-    {
-        g2oFrameSE3* v_kf;
-        if((*it_kf)->id_ == 0)
-            v_kf = createG2oFrameSE3((*it_kf), v_id++, true);
-        else
-            v_kf = createG2oFrameSE3((*it_kf), v_id++, false);
+  // Add all core keyframes
+  for (set<Frame *>::iterator it_kf = core_kfs->begin(); it_kf != core_kfs->end(); ++it_kf) {
+    g2oFrameSE3 *v_kf;
+    if ((*it_kf)->id_ == 0)
+      v_kf = createG2oFrameSE3((*it_kf), v_id++, true);
+    else
+      v_kf = createG2oFrameSE3((*it_kf), v_id++, false);
 
-        (*it_kf)->v_kf_ = v_kf;
-        ++n_var_kfs;
+    (*it_kf)->v_kf_ = v_kf;
+    ++n_var_kfs;
+    assert(optimizer.addVertex(v_kf));
+
+    // all points that the core keyframes observe are also optimized:
+    for (Features::iterator it_pt = (*it_kf)->fts_.begin(); it_pt != (*it_kf)->fts_.end(); ++it_pt) {
+      if ((*it_pt)->point != NULL) {
+        // assert((*it_pt)->point->type_ != Point::TYPE_CANDIDATE);
+        mps.insert((*it_pt)->point);
+      }
+    }
+  }
+  // cout << "OK1" << endl;
+  // Now go throug all the points and add a measurement. Add a fixed neighbour
+  // Keyframe if it is not in the set of core kfs
+  double reproj_thresh_2 = Config::lobaThresh() / center_kf->cam_->errorMultiplier2();
+  double reproj_thresh_1 = Config::poseOptimThresh() / center_kf->cam_->errorMultiplier2();
+  double reproj_thresh_1_squared = reproj_thresh_1 * reproj_thresh_1;
+  for (set<Point *>::iterator it_pt = mps.begin(); it_pt != mps.end(); ++it_pt) {
+    // Create point vertex
+    g2oPoint *v_pt = createG2oPoint((*it_pt)->pos_, v_id++, false);
+    (*it_pt)->v_pt_ = v_pt;
+    assert(optimizer.addVertex(v_pt));
+    ++n_mps;
+
+    // Add edges
+    list<Feature *>::iterator it_obs = (*it_pt)->obs_.begin();
+    while (it_obs != (*it_pt)->obs_.end()) {
+      Vector2d error = hso::project2d((*it_obs)->f) - hso::project2d((*it_obs)->frame->w2f((*it_pt)->pos_));
+
+      if ((*it_obs)->frame->v_kf_ == NULL) {
+        // frame does not have a vertex yet -> it belongs to the neib kfs and
+        // is fixed. create one:
+        g2oFrameSE3 *v_kf = createG2oFrameSE3((*it_obs)->frame, v_id++, true);
+        (*it_obs)->frame->v_kf_ = v_kf;
+        ++n_fix_kfs;
         assert(optimizer.addVertex(v_kf));
+        neib_kfs.push_back((*it_obs)->frame);
+      }
 
-        // all points that the core keyframes observe are also optimized:
-        for(Features::iterator it_pt=(*it_kf)->fts_.begin(); it_pt!=(*it_kf)->fts_.end(); ++it_pt)
-        {
-            if((*it_pt)->point != NULL)
-            {
-                // assert((*it_pt)->point->type_ != Point::TYPE_CANDIDATE);
-                mps.insert((*it_pt)->point);
-            }
-        }
+      // create edge
+      if ((*it_obs)->type != Feature::EDGELET) {
+        g2oEdgeSE3 *e = createG2oEdgeSE3(
+            (*it_obs)->frame->v_kf_, v_pt, hso::project2d((*it_obs)->f), true,
+            reproj_thresh_2 * Config::lobaRobustHuberWidth(), 1.0 / (1 << (*it_obs)->level));
+
+        edges.push_back(EdgeContainerSE3(e, (*it_obs)->frame, *it_obs));
+        assert(optimizer.addEdge(e));
+      } else {
+        rdvoEdgeProjectXYZ2UV *e = createG2oEdgeletSE3(
+            (*it_obs)->frame->v_kf_, v_pt, hso::project2d((*it_obs)->f), true,
+            reproj_thresh_2 * Config::lobaRobustHuberWidth(), 1.0 / (1 << (*it_obs)->level), (*it_obs)->grad);
+
+        edgelets.push_back(EdgeContainerEdgelet(e, (*it_obs)->frame, *it_obs));
+        assert(optimizer.addEdge(e));
+      }
+      ++n_edges;
+      ++it_obs;
     }
-    // cout << "OK1" << endl;
-    // Now go throug all the points and add a measurement. Add a fixed neighbour
-    // Keyframe if it is not in the set of core kfs
-    double reproj_thresh_2 = Config::lobaThresh() / center_kf->cam_->errorMultiplier2();
-    double reproj_thresh_1 = Config::poseOptimThresh() / center_kf->cam_->errorMultiplier2();
-    double reproj_thresh_1_squared = reproj_thresh_1*reproj_thresh_1;
-    for(set<Point*>::iterator it_pt = mps.begin(); it_pt!=mps.end(); ++it_pt)
+  }
+  // cout << "OK2" << endl;
+  // structure only
+  // g2o::StructureOnlySolver<3> structure_only_ba;
+  // g2o::OptimizableGraph::VertexContainer points;
+  // for (g2o::OptimizableGraph::VertexIDMap::const_iterator it = optimizer.vertices().begin(); it != optimizer.vertices().end(); ++it)
+  // {
+  //   g2o::OptimizableGraph::Vertex* v = static_cast<g2o::OptimizableGraph::Vertex*>(it->second);
+  //     if (v->dimension() == 3 && v->edges().size() >= 2)
+  //       points.push_back(v);
+  // }
+  // structure_only_ba.calc(points, 10);
+
+  // Optimization
+  if (Config::lobaNumIter() > 0)
+    runSparseBAOptimizer(&optimizer, Config::lobaNumIter(), init_error, final_error);
+
+  // cout << "OK3" << endl;
+  // Update Keyframes
+  for (set<Frame *>::iterator it = core_kfs->begin(); it != core_kfs->end(); ++it) {
+    (*it)->T_f_w_ = SE3((*it)->v_kf_->estimate().rotation(), (*it)->v_kf_->estimate().translation());
+    (*it)->v_kf_ = NULL;
+
+
+    // if(LastKeyFrame != NULL && (*it)->id_ == LastKeyFrame->id_)
+    //     for(auto ite = LastKeyFrame->featureChild_.begin(); ite != LastKeyFrame->featureChild_.end(); ++ite)
+    //     {
+    //         if((*ite)->point == NULL) continue;
+
+    //         if((*ite)->point->v_pt_ == NULL && (*ite)->point->type_ == Point::TYPE_CANDIDATE)
+    //         {
+    //             (*ite)->point->pos_ = LastKeyFrame->T_f_w_.inverse() * ((*ite)->f * (1.0/(*ite)->point->idist_));
+    //         }
+    //     }
+  }
+
+  for (list<Frame *>::iterator it = neib_kfs.begin(); it != neib_kfs.end(); ++it)
+    (*it)->v_kf_ = NULL;
+
+  // Update Mappoints
+  for (set<Point *>::iterator it = mps.begin(); it != mps.end(); ++it) {
+    (*it)->pos_ = (*it)->v_pt_->estimate();
+    (*it)->v_pt_ = NULL;
+  }
+  // cout << "OK4" << endl;
+  // Remove Measurements with too large reprojection error
+  double reproj_thresh_2_squared = reproj_thresh_2 * reproj_thresh_2;
+  for (list<EdgeContainerSE3>::iterator it = edges.begin(); it != edges.end(); ++it) {
+    if (it->feature->point == NULL)
+      continue;
+    // We only delete the temprorary point in reprojector
+    if (it->edge->chi2() > reproj_thresh_2_squared) //*(1<<it->feature_->level))
     {
-        // Create point vertex
-        g2oPoint* v_pt = createG2oPoint((*it_pt)->pos_, v_id++, false);
-        (*it_pt)->v_pt_ = v_pt;
-        assert(optimizer.addVertex(v_pt));
-        ++n_mps;
+      if (it->feature->point->type_ == Point::TYPE_TEMPORARY) {
+        it->feature->point->isBad_ = true;
+        continue;
+      }
+      // assert(it->feature->point->type_ != Point::TYPE_TEMPORARY &&
+      //        it->feature->point->type_ != Point::TYPE_CANDIDATE &&
+      //        it->feature->point->type_ != Point::TYPE_DELETED );
 
-        // Add edges
-        list<Feature*>::iterator it_obs=(*it_pt)->obs_.begin();
-        while(it_obs!=(*it_pt)->obs_.end())
-        {
-            Vector2d error = hso::project2d((*it_obs)->f) - hso::project2d((*it_obs)->frame->w2f((*it_pt)->pos_));
-
-            if((*it_obs)->frame->v_kf_ == NULL)
-            {
-                // frame does not have a vertex yet -> it belongs to the neib kfs and
-                // is fixed. create one:
-                g2oFrameSE3* v_kf = createG2oFrameSE3((*it_obs)->frame, v_id++, true);
-                (*it_obs)->frame->v_kf_ = v_kf;
-                ++n_fix_kfs;
-                assert(optimizer.addVertex(v_kf));
-                neib_kfs.push_back((*it_obs)->frame);
-            }
-
-            // create edge
-            if((*it_obs)->type != Feature::EDGELET)
-            {
-                g2oEdgeSE3* e = createG2oEdgeSE3(
-                    (*it_obs)->frame->v_kf_, v_pt, hso::project2d((*it_obs)->f), true,
-                    reproj_thresh_2*Config::lobaRobustHuberWidth(), 1.0 / (1<<(*it_obs)->level));
-
-                edges.push_back(EdgeContainerSE3(e, (*it_obs)->frame, *it_obs));
-                assert(optimizer.addEdge(e));
-            }
-            else
-            {
-                rdvoEdgeProjectXYZ2UV* e = createG2oEdgeletSE3(
-                    (*it_obs)->frame->v_kf_, v_pt, hso::project2d((*it_obs)->f), true,
-                    reproj_thresh_2*Config::lobaRobustHuberWidth(), 1.0 / (1<<(*it_obs)->level), (*it_obs)->grad);
-
-                edgelets.push_back(EdgeContainerEdgelet(e, (*it_obs)->frame, *it_obs));
-                assert(optimizer.addEdge(e));
-            }
-            ++n_edges;
-            ++it_obs;
-        }
+      // cout << "OK0.1" << endl;
+      map->removePtFrameRef(it->frame, it->feature);
+      // cout << "OK0.2" << endl;
+      ++n_incorrect_edges_2;
     }
-    // cout << "OK2" << endl;
-    // structure only
-    // g2o::StructureOnlySolver<3> structure_only_ba;
-    // g2o::OptimizableGraph::VertexContainer points;
-    // for (g2o::OptimizableGraph::VertexIDMap::const_iterator it = optimizer.vertices().begin(); it != optimizer.vertices().end(); ++it)
-    // {
-    //   g2o::OptimizableGraph::Vertex* v = static_cast<g2o::OptimizableGraph::Vertex*>(it->second);
-    //     if (v->dimension() == 3 && v->edges().size() >= 2)
-    //       points.push_back(v);
-    // }
-    // structure_only_ba.calc(points, 10);
-
-    // Optimization
-    if(Config::lobaNumIter() > 0)
-        runSparseBAOptimizer(&optimizer, Config::lobaNumIter(), init_error, final_error);
-
-    // cout << "OK3" << endl;
-    // Update Keyframes
-    for(set<Frame*>::iterator it = core_kfs->begin(); it != core_kfs->end(); ++it)
-    {
-        (*it)->T_f_w_ = SE3( (*it)->v_kf_->estimate().rotation(), (*it)->v_kf_->estimate().translation());
-        (*it)->v_kf_ = NULL;
-
-
-        // if(LastKeyFrame != NULL && (*it)->id_ == LastKeyFrame->id_)
-        //     for(auto ite = LastKeyFrame->featureChild_.begin(); ite != LastKeyFrame->featureChild_.end(); ++ite)
-        //     {
-        //         if((*ite)->point == NULL) continue;
-
-        //         if((*ite)->point->v_pt_ == NULL && (*ite)->point->type_ == Point::TYPE_CANDIDATE)
-        //         {
-        //             (*ite)->point->pos_ = LastKeyFrame->T_f_w_.inverse() * ((*ite)->f * (1.0/(*ite)->point->idist_));
-        //         }
-        //     }
-    }
-
-    for(list<Frame*>::iterator it = neib_kfs.begin(); it != neib_kfs.end(); ++it)
-        (*it)->v_kf_ = NULL;
-
-    // Update Mappoints
-    for(set<Point*>::iterator it = mps.begin(); it != mps.end(); ++it)
-    {
-        (*it)->pos_ = (*it)->v_pt_->estimate();
-        (*it)->v_pt_ = NULL;
-    }
-    // cout << "OK4" << endl;
-    // Remove Measurements with too large reprojection error
-    double reproj_thresh_2_squared = reproj_thresh_2*reproj_thresh_2;
-    for(list<EdgeContainerSE3>::iterator it = edges.begin(); it != edges.end(); ++it)
-    {
-        if(it->feature->point == NULL)
-            continue;
-        // We only delete the temprorary point in reprojector
-        if(it->edge->chi2() > reproj_thresh_2_squared) //*(1<<it->feature_->level))
-        {
-            if(it->feature->point->type_ == Point::TYPE_TEMPORARY)
-            {
-                it->feature->point->isBad_ = true;
-                continue;
-            }
-            // assert(it->feature->point->type_ != Point::TYPE_TEMPORARY &&
-            //        it->feature->point->type_ != Point::TYPE_CANDIDATE &&
-            //        it->feature->point->type_ != Point::TYPE_DELETED );
-
-            // cout << "OK0.1" << endl;
-            map->removePtFrameRef(it->frame, it->feature);
-            // cout << "OK0.2" << endl;
-            ++n_incorrect_edges_2;
-        }
-    }
-    // for(list<EdgeContainerEdgelet>::iterator it = edgelets.begin(); it != edgelets.end(); ++it)
-    // {
-    //   if(it->edge->chi2() > reproj_thresh_2_squared && it->feature->point->type_ != Point::TYPE_TEMPORARY) //*(1<<it->feature_->level))
-    //   {
-    //     map->removePtFrameRef(it->frame, it->feature);
-    //     ++n_incorrect_edges_2;
-    //   }
-    // }
-    // cout << "OK5" << endl;
-    // TODO: delete points and edges!
-    init_error = sqrt(init_error)*center_kf->cam_->errorMultiplier2();
-    final_error = sqrt(final_error)*center_kf->cam_->errorMultiplier2();
+  }
+  // for(list<EdgeContainerEdgelet>::iterator it = edgelets.begin(); it != edgelets.end(); ++it)
+  // {
+  //   if(it->edge->chi2() > reproj_thresh_2_squared && it->feature->point->type_ != Point::TYPE_TEMPORARY) //*(1<<it->feature_->level))
+  //   {
+  //     map->removePtFrameRef(it->frame, it->feature);
+  //     ++n_incorrect_edges_2;
+  //   }
+  // }
+  // cout << "OK5" << endl;
+  // TODO: delete points and edges!
+  init_error = sqrt(init_error) * center_kf->cam_->errorMultiplier2();
+  final_error = sqrt(final_error) * center_kf->cam_->errorMultiplier2();
 }
 
-void setupG2o(g2o::SparseOptimizer * optimizer)
-{
+void setupG2o(g2o::SparseOptimizer *optimizer) {
   // TODO: What's happening with all this HEAP stuff? Memory Leak?
   optimizer->setVerbose(false);
 
 #if SCHUR_TRICK
   // solver
-  g2o::BlockSolver_6_3::LinearSolverType* linearSolver;
+  g2o::BlockSolver_6_3::LinearSolverType *linearSolver;
   linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
   //linearSolver = new g2o::LinearSolverCSparse<g2o::BlockSolver_6_3::PoseMatrixType>();
 
-  g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
-  g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+  g2o::BlockSolver_6_3 *solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+  g2o::OptimizationAlgorithmLevenberg *solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 #else
   g2o::BlockSolverX::LinearSolverType * linearSolver;
   linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
@@ -348,35 +351,33 @@ void setupG2o(g2o::SparseOptimizer * optimizer)
   // }
 }
 
-void
-runSparseBAOptimizer(g2o::SparseOptimizer* optimizer,
-                     unsigned int num_iter,
-                     double& init_error, double& final_error)
-{
-    optimizer->initializeOptimization();
-    optimizer->computeActiveErrors();
-    init_error = optimizer->activeChi2();
-    optimizer->optimize(num_iter);
-    final_error = optimizer->activeChi2();
+void runSparseBAOptimizer(g2o::SparseOptimizer *optimizer,
+                          unsigned int num_iter,
+                          double &init_error, double &final_error) {
+  // 初始化整个图构造
+  optimizer->initializeOptimization();
+  // 计算所有边的误差向量
+  optimizer->computeActiveErrors();
+  // 优化前的误差
+  init_error = optimizer->activeChi2();
+  optimizer->optimize(num_iter);
+  // 优化后的误差
+  final_error = optimizer->activeChi2();
 }
 
-g2oFrameSE3*
-createG2oFrameSE3(Frame* frame, size_t id, bool fixed)
-{
-    g2oFrameSE3* v = new g2oFrameSE3();
-    v->setId(id);
-    v->setFixed(fixed);
-
-    v->setEstimate(g2o::SE3Quat(frame->T_f_w_.unit_quaternion(), frame->T_f_w_.translation()));
-    return v;
+g2oFrameSE3 *createG2oFrameSE3(Frame *frame, size_t id, bool fixed) {
+  g2oFrameSE3 *v = new g2oFrameSE3();
+  v->setId(id);
+  // 设置成固定就不优化了
+  v->setFixed(fixed);
+  v->setEstimate(g2o::SE3Quat(frame->T_f_w_.unit_quaternion(), frame->T_f_w_.translation()));
+  return v;
 }
 
-g2oPoint*
-createG2oPoint(Vector3d pos,
-               size_t id,
-               bool fixed)
-{
-  g2oPoint* v = new g2oPoint();
+g2oPoint *createG2oPoint(Vector3d pos,
+                         size_t id,
+                         bool fixed) {
+  g2oPoint *v = new g2oPoint();
   v->setId(id);
 #if SCHUR_TRICK
   v->setMarginalized(true);
@@ -386,514 +387,491 @@ createG2oPoint(Vector3d pos,
   return v;
 }
 
-g2oEdgeSE3*
-createG2oEdgeSE3( g2oFrameSE3* v_frame,
-                  g2oPoint* v_point,
-                  const Vector2d& f_up,
-                  bool robust_kernel,
-                  double huber_width,
-                  double weight)
-{
-  g2oEdgeSE3* e = new g2oEdgeSE3();
-  e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_point));
-  e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_frame));
+g2oEdgeSE3 *createG2oEdgeSE3(g2oFrameSE3 *v_frame,
+                             g2oPoint *v_point,
+                             const Vector2d &f_up,
+                             bool robust_kernel,
+                             double huber_width,
+                             double weight) {
+  g2oEdgeSE3 *e = new g2oEdgeSE3();
+  e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_point));
+  e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_frame));
   e->setMeasurement(f_up);
   // e->information() = weight * Eigen::Matrix2d::Identity(2,2);
-  e->setInformation(Eigen::Matrix2d::Identity()*weight);
-  g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber();      // TODO: memory leak
+  e->setInformation(Eigen::Matrix2d::Identity() * weight);
+  g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber();      // TODO: memory leak
   rk->setDelta(huber_width);
   e->setRobustKernel(rk);
   e->setParameterId(0, 0); //old: e->setId(v_point->id());
   return e;
 }
 
-rdvoEdgeProjectXYZ2UV* 
-createG2oEdgeletSE3(g2oFrameSE3* v_frame,
-                    g2oPoint* v_point,
-                    const Vector2d& f_up,
-                    bool robust_kernel,
-                    double huber_width,
-                    double weight,
-                    const Vector2d& grad)
-{
-  rdvoEdgeProjectXYZ2UV* e = new rdvoEdgeProjectXYZ2UV();
-  e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_point));
-  e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_frame));
+rdvoEdgeProjectXYZ2UV *createG2oEdgeletSE3(g2oFrameSE3 *v_frame,
+                                           g2oPoint *v_point,
+                                           const Vector2d &f_up,
+                                           bool robust_kernel,
+                                           double huber_width,
+                                           double weight,
+                                           const Vector2d &grad) {
+  rdvoEdgeProjectXYZ2UV *e = new rdvoEdgeProjectXYZ2UV();
+  e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_point));
+  e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_frame));
   e->setMeasurement(grad.transpose() * f_up);
-  e->information() = weight * Eigen::Matrix<double,1,1>::Identity(1,1);
-  g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber();      
+  e->information() = weight * Eigen::Matrix<double, 1, 1>::Identity(1, 1);
+  g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber();
   rk->setDelta(huber_width);
   e->setRobustKernel(rk);
-  e->setParameterId(0, 0); 
+  e->setParameterId(0, 0);
   e->setGrad(grad);
   return e;
 }
 
-void initializationBA(Frame* frame1, Frame* frame2, double reproj_thresh, Map* map)
-{
-    // scale reprojection threshold in pixels to unit plane
-    reproj_thresh /= frame1->cam_->errorMultiplier2();
+void initializationBA(Frame *frame1, Frame *frame2, double reproj_thresh, Map *map) {
+  // scale reprojection threshold in pixels to unit plane
+  reproj_thresh /= frame1->cam_->errorMultiplier2();
 
-    // init g2o
-    g2o::SparseOptimizer optimizer;
-    optimizer.setVerbose(false);
+  // init g2o
+  g2o::SparseOptimizer optimizer;
+  optimizer.setVerbose(false);
 
-    g2o::BlockSolverX::LinearSolverType * linearSolver;
-    linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linearSolver);
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+  g2o::BlockSolverX::LinearSolverType *linearSolver;
+  linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
+  g2o::BlockSolverX *solver_ptr = new g2o::BlockSolverX(linearSolver);
+  g2o::OptimizationAlgorithmLevenberg *solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 
-    solver->setMaxTrialsAfterFailure(5);
-    optimizer.setAlgorithm(solver);
+  solver->setMaxTrialsAfterFailure(5);
+  optimizer.setAlgorithm(solver);
 
-    // g2o::CameraParameters * cam_params = new g2o::CameraParameters(1.0, Vector2d(0.,0.), 0.);
-    // cam_params->setId(0);
-    // if(!optimizer.addParameter(cam_params)) assert(false);
-
-
-    list<EdgeContainerID> edges;
-    size_t v_id = 0;
-
-    // New Keyframe Vertex 1: This Keyframe is set to fixed!
-    g2oFrameSE3* v_frame1 = createG2oFrameSE3(frame1, v_id++, true);
-    optimizer.addVertex(v_frame1);
-
-    // New Keyframe Vertex 2
-    g2oFrameSE3* v_frame2 = createG2oFrameSE3(frame2, v_id++, false);
-    optimizer.addVertex(v_frame2);
-
-    // Create Point Vertices
-    for(Features::iterator it_ftr=frame1->fts_.begin(); it_ftr!=frame1->fts_.end(); ++it_ftr)
-    {
-        Point* pt = (*it_ftr)->point;
-        // if(pt == NULL) continue;
-        assert(pt != NULL);
-
-        VertexSBAPointID* vPoint = new VertexSBAPointID();
-        vPoint->setId(v_id++);
-        vPoint->setFixed(false);
-        vPoint->setEstimate(pt->idist_);
-        pt->vPoint_ = vPoint;
-        pt->nBA_++;
-        optimizer.addVertex(vPoint);
-
-        EdgeProjectID2UV* edge = new EdgeProjectID2UV();
-        edge->resize(3);
-        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vPoint));
-        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_frame1));
-        edge->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_frame2));
-
-        edge->setHostBearing(pt->hostFeature_->f);
+  // g2o::CameraParameters * cam_params = new g2o::CameraParameters(1.0, Vector2d(0.,0.), 0.);
+  // cam_params->setId(0);
+  // if(!optimizer.addParameter(cam_params)) assert(false);
 
 
-        // Feature* ftr_frame2 = pt->findFrameRef(frame2);
-        Feature* ftr_frame2 = NULL;
-        for(auto ite = frame2->fts_.begin(); ite != frame2->fts_.end(); ++ite)
-            if((*ite)->point == pt) 
-            {
-                ftr_frame2 = *ite;
-                break;
-            }
-        // assert(ftr_frame2 != NULL);
-        if(ftr_frame2 == NULL) continue;
-        edge->setMeasurement(hso::project2d(ftr_frame2->f));
+  list<EdgeContainerID> edges;
+  size_t v_id = 0;
+
+  // New Keyframe Vertex 1: This Keyframe is set to fixed!
+  g2oFrameSE3 *v_frame1 = createG2oFrameSE3(frame1, v_id++, true);
+  optimizer.addVertex(v_frame1);
+
+  // New Keyframe Vertex 2
+  g2oFrameSE3 *v_frame2 = createG2oFrameSE3(frame2, v_id++, false);
+  optimizer.addVertex(v_frame2);
+
+  // Create Point Vertices
+  for (Features::iterator it_ftr = frame1->fts_.begin(); it_ftr != frame1->fts_.end(); ++it_ftr) {
+    Point *pt = (*it_ftr)->point;
+    // if(pt == NULL) continue;
+    assert(pt != NULL);
+
+    VertexSBAPointID *vPoint = new VertexSBAPointID();
+    vPoint->setId(v_id++);
+    vPoint->setFixed(false);
+    vPoint->setEstimate(pt->idist_);
+    pt->vPoint_ = vPoint;
+    pt->nBA_++;
+    optimizer.addVertex(vPoint);
+
+    EdgeProjectID2UV *edge = new EdgeProjectID2UV();
+    edge->resize(3);
+    edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vPoint));
+    edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_frame1));
+    edge->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex *>(v_frame2));
+
+    edge->setHostBearing(pt->hostFeature_->f);
 
 
-        edge->setInformation(Eigen::Matrix2d::Identity() * (1.0/(1<<(*it_ftr)->level)));
-        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber();      
-        rk->setDelta((1.0/frame1->cam_->errorMultiplier2())*Config::lobaRobustHuberWidth());
-        edge->setRobustKernel(rk);
-        edge->setParameterId(0, 0); 
+    // Feature* ftr_frame2 = pt->findFrameRef(frame2);
+    Feature *ftr_frame2 = NULL;
+    for (auto ite = frame2->fts_.begin(); ite != frame2->fts_.end(); ++ite)
+      if ((*ite)->point == pt) {
+        ftr_frame2 = *ite;
+        break;
+      }
+    // assert(ftr_frame2 != NULL);
+    if (ftr_frame2 == NULL) continue;
+    edge->setMeasurement(hso::project2d(ftr_frame2->f));
 
+    edge->setInformation(Eigen::Matrix2d::Identity() * (1.0 / (1 << (*it_ftr)->level)));
+    g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber();
+    rk->setDelta((1.0 / frame1->cam_->errorMultiplier2()) * Config::lobaRobustHuberWidth());
+    edge->setRobustKernel(rk);
+    edge->setParameterId(0, 0);
 
-        edges.push_back(EdgeContainerID(edge, (*it_ftr)->frame, *it_ftr));  
-        optimizer.addEdge(edge);
+    edges.push_back(EdgeContainerID(edge, (*it_ftr)->frame, *it_ftr));
+    optimizer.addEdge(edge);
+  }
+
+  // Optimization
+  double init_error, final_error;
+  runSparseBAOptimizer(&optimizer, 50, init_error, final_error);
+  printf("2-View BA: Error before/after = %f / %f\n", init_error, final_error);
+
+  // Update Keyframe Positions
+  frame1->T_f_w_.rotation_matrix() = v_frame1->estimate().rotation().toRotationMatrix();
+  frame1->T_f_w_.translation() = v_frame1->estimate().translation();
+  frame2->T_f_w_.rotation_matrix() = v_frame2->estimate().rotation().toRotationMatrix();
+  frame2->T_f_w_.translation() = v_frame2->estimate().translation();
+
+  // Update Mappoint Positions
+  for (Features::iterator it = frame1->fts_.begin(); it != frame1->fts_.end(); ++it) {
+    // if((*it)->point == NULL) continue;
+    assert((*it)->point != NULL);
+
+    Point *pt = (*it)->point;
+    pt->idist_ = pt->vPoint_->estimate();
+    pt->vPoint_ = NULL;
+
+    //update position
+    pt->pos_ = pt->hostFeature_->f * (1.0 / pt->idist_);
+  }
+
+  // Find Mappoints with too large reprojection error
+  const double reproj_thresh_squared = reproj_thresh * reproj_thresh;
+  size_t n_incorrect_edges = 0;
+  for (list<EdgeContainerID>::iterator it_e = edges.begin(); it_e != edges.end(); ++it_e)
+    if (it_e->edge->chi2() > reproj_thresh_squared) {
+      if (it_e->feature->point != NULL) {
+        map->safeDeletePoint(it_e->feature->point);
+        it_e->feature->point = NULL;
+      }
+      ++n_incorrect_edges;
     }
 
-    // Optimization
-    double init_error, final_error;
-    runSparseBAOptimizer(&optimizer, 50, init_error, final_error);
-    printf("2-View BA: Error before/after = %f / %f\n", init_error, final_error);
-
-    // Update Keyframe Positions
-    frame1->T_f_w_.rotation_matrix() = v_frame1->estimate().rotation().toRotationMatrix();
-    frame1->T_f_w_.translation() = v_frame1->estimate().translation();
-    frame2->T_f_w_.rotation_matrix() = v_frame2->estimate().rotation().toRotationMatrix();
-    frame2->T_f_w_.translation() = v_frame2->estimate().translation();
-
-    // Update Mappoint Positions
-    for(Features::iterator it=frame1->fts_.begin(); it!=frame1->fts_.end(); ++it)
-    {
-        // if((*it)->point == NULL) continue;
-        assert((*it)->point != NULL);
-
-        Point* pt = (*it)->point;
-        pt->idist_ = pt->vPoint_->estimate();
-        pt->vPoint_ = NULL;
-
-        //update position
-        pt->pos_ = pt->hostFeature_->f*(1.0/pt->idist_);
-    }
-
-    // Find Mappoints with too large reprojection error
-    const double reproj_thresh_squared = reproj_thresh*reproj_thresh;
-    size_t n_incorrect_edges = 0;
-    for(list<EdgeContainerID>::iterator it_e = edges.begin(); it_e != edges.end(); ++it_e)
-        if(it_e->edge->chi2() > reproj_thresh_squared)
-        {
-            if(it_e->feature->point != NULL)
-            {
-                map->safeDeletePoint(it_e->feature->point);
-                it_e->feature->point = NULL;
-            }
-            ++n_incorrect_edges;
-        }
-
-    printf("2-View BA: Wrong edges =  %zu\n", n_incorrect_edges);
+  printf("2-View BA: Wrong edges =  %zu\n", n_incorrect_edges);
 }
 
+/********************************
+ * @ function:
+ *
+ * @ param:     Frame* center_kf                  当前帧（不过当前帧此时已经是关键帧了）
+ *              set<FramePtr>* core_kfs           待优化的核心关键帧
+ *              Map* map                          地图
+ *              size_t& n_incorrect_edges_1       重投影误差过大的点特征的边数目
+ *              size_t& n_incorrect_edges_2       重投影误差过大的edgelet特征的边数目
+ *              double& init_error,               优化前误差（像素误差）
+ *              double& final_error               优化后误差（像素误差）
+ *
+ * @ note:
+ *******************************/
+void LocalBundleAdjustment(Frame *center_kf,
+                           set<Frame *> *core_kfs,
+                           Map *map,
+                           size_t &n_incorrect_edges_1,
+                           size_t &n_incorrect_edges_2,
+                           double &init_error,
+                           double &final_error) {
+  g2o::SparseOptimizer optimizer;
+  optimizer.setVerbose(false);
 
-void LocalBundleAdjustment(Frame* center_kf,
-    set<Frame*>* core_kfs,
-    Map* map,
-    size_t& n_incorrect_edges_1,
-    size_t& n_incorrect_edges_2,
-    double& init_error,
-    double& final_error)
-{
-    g2o::SparseOptimizer optimizer;
-    optimizer.setVerbose(false);
+  // 别地，当你不想了解到底是多少维，可以使用typedef g2o::BlockSolverX BlockSolverType; 他会自定推测数据的维度。
+  g2o::BlockSolverX::LinearSolverType *linearSolver;
+  linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
+  g2o::BlockSolverX *solver_ptr = new g2o::BlockSolverX(linearSolver);
+  g2o::OptimizationAlgorithmLevenberg *solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 
-    g2o::BlockSolverX::LinearSolverType* linearSolver;
-    linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX* solver_ptr = new g2o::BlockSolverX(linearSolver);
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-    solver->setMaxTrialsAfterFailure(5);
-    
-    optimizer.setAlgorithm(solver);
+  // 失败后最多迭代5次
+  solver->setMaxTrialsAfterFailure(5);
+  // 设置算法
+  optimizer.setAlgorithm(solver);
+
+  list<EdgeContainerID> edges;
+  list<EdgeContainerIDEdgeLet> edgeLets;
+
+  set<Point *> mps; // 要优化的地图点
+  list<Frame *> neib_kfs; // 和 core_kfs 具有共视关系的帧
+  list<Frame *> hostKeyFrame;
+  size_t v_id = 0; // 顶点的ID号
+  size_t n_mps = 0; // 加入的地图点的个数
+  size_t n_fix_kfs = 0; // 固定的帧的个数
+  size_t n_var_kfs = 1; // 作为G2O变量顶点的关键帧数目
+  size_t n_edges = 0; // 边的个数
+  n_incorrect_edges_1 = 0;
+  n_incorrect_edges_2 = 0;
+
+  //[ ***step 1*** ] 把 core_kfs 加入到优化器的顶点, 把其可观察到的地图点加入mps
+  for (set<Frame *>::iterator it_kf = core_kfs->begin(); it_kf != core_kfs->end(); ++it_kf) {
+    g2oFrameSE3 *v_kf;
+    // 如果关键帧相较于当前帧太老那么就固定
+    if ((*it_kf)->id_ == 0 || (*it_kf)->keyFrameId_ + 20 < center_kf->keyFrameId_)
+      v_kf = createG2oFrameSE3((*it_kf), v_id++, true);
+    else
+      v_kf = createG2oFrameSE3((*it_kf), v_id++, false);
+
+    (*it_kf)->v_kf_ = v_kf;
+    ++n_var_kfs;
+    // 添加到g2o里面作为顶点
+    assert(optimizer.addVertex(v_kf));
+
+    // all points that the core keyframes observe are also optimized:
+    // 循环遍历每一关键帧观测到的地图点
+    for (Features::iterator it_pt = (*it_kf)->fts_.begin(); it_pt != (*it_kf)->fts_.end(); ++it_pt) {
+      if ((*it_pt)->point == NULL) continue;
+
+      // 这里不允许候选地图点出现
+      assert((*it_pt)->point->type_ != Point::TYPE_CANDIDATE);
+      mps.insert((*it_pt)->point);
+    }
+  }
+
+  vector<float> errors_pt, errors_ls, errors_tt;
+  int n_pt = 0, n_ls = 0, n_tt = 0;
+
+  for (set<Point *>::iterator it_pt = mps.begin(); it_pt != mps.end(); ++it_pt) {
+    Frame *host_frame = (*it_pt)->hostFeature_->frame;
+    Vector3d pHost = (*it_pt)->hostFeature_->f * (1.0 / (*it_pt)->idist_);
+    // 遍历该地图点在关键帧中对应的2D特征
+    for (auto it_ft = (*it_pt)->obs_.begin(); it_ft != (*it_pt)->obs_.end(); ++it_ft) {
+      // skip host frame
+      if ((*it_ft)->frame->id_ == host_frame->id_) continue;
+      assert((*it_ft)->point == *it_pt);
+
+      SE3 Tth = (*it_ft)->frame->T_f_w_ * host_frame->T_f_w_.inverse();
+      Vector3d pTarget = Tth * pHost;
+
+      // 重投影误差
+      Vector2d e = hso::project2d((*it_ft)->f) - hso::project2d(pTarget);
+      e *= 1.0 / (1 << (*it_ft)->level);
+
+      // float e_norm = e.norm();
+
+      if ((*it_ft)->type == Feature::EDGELET) {
+        errors_ls.push_back(fabs((*it_ft)->grad.transpose() * e));
+        n_ls++; // 统计边特征
+
+      } else {
+        errors_pt.push_back(e.norm());
+        n_pt++; // 统计点特征
+
+      }
+
+    }
+  }
 
 
+  // calc huber threshold
+  // 估计标准差 = 1.4826*绝对中位差
+  // 确定点特征 和 边特征的阈值
+  float huber_corner, huber_edge;
+  if (!errors_pt.empty() && !errors_ls.empty()) {
+    huber_corner = 1.4826 * hso::getMedian(errors_pt);
+    huber_edge = 1.4826 * hso::getMedian(errors_ls);
+  } else if (errors_pt.empty() && !errors_ls.empty()) {
+    huber_corner = 1.0 / center_kf->cam_->errorMultiplier2();
+    huber_edge = 1.4826 * hso::getMedian(errors_ls);
+  } else if (!errors_pt.empty() && errors_ls.empty()) {
+    huber_corner = 1.4826 * hso::getMedian(errors_pt);
+    huber_edge = 0.5 / center_kf->cam_->errorMultiplier2();
+  } else {
+  }
 
+  //[ ***step 2*** ] 把 mps 里面的点加入到优化器顶点
+  for (set<Point *>::iterator it_pt = mps.begin(); it_pt != mps.end(); ++it_pt) {
+    VertexSBAPointID *vPoint = new VertexSBAPointID();
+    vPoint->setId(v_id++);
+    vPoint->setFixed(false);
+    vPoint->setEstimate((*it_pt)->idist_);
+    (*it_pt)->vPoint_ = vPoint;
+    (*it_pt)->nBA_++;
 
-    list<EdgeContainerID> edges;
-    list<EdgeContainerIDEdgeLet> edgeLets;
+    // Add Host Frame
+    // 将该地图点的宿主帧（host frmae）添加到顶点，并固定
+    g2oFrameSE3 *vHost = NULL;
+    if ((*it_pt)->hostFeature_->frame->v_kf_ == NULL) {
+      g2oFrameSE3 *v_kf = createG2oFrameSE3((*it_pt)->hostFeature_->frame, v_id++, true);
+      (*it_pt)->hostFeature_->frame->v_kf_ = v_kf;
+      ++n_fix_kfs;
+      assert(optimizer.addVertex(v_kf));
+      hostKeyFrame.push_back((*it_pt)->hostFeature_->frame);
+      vHost = v_kf;
+    } else {
+      vHost = (*it_pt)->hostFeature_->frame->v_kf_;
+    }
+    assert(optimizer.addVertex(vPoint));
+    // 统计顶点加入地图点的个数
+    ++n_mps;
 
-    set<Point*> mps;
-    list<Frame*> neib_kfs;
-    list<Frame*> hostKeyFrame;
-    size_t v_id = 0;
-    size_t n_mps = 0;
-    size_t n_fix_kfs = 0;
-    size_t n_var_kfs = 1;
-    size_t n_edges = 0;
-    n_incorrect_edges_1 = 0;
-    n_incorrect_edges_2 = 0;
+    // add other target frame
+    // assert((*it_pt)->obs_.size() > 1);
+    //[ ***step 3*** ] 将3D点被观测的帧也加入到优化器, 属于固定的帧
+    // 遍历该地图点的其他观测帧（target frame），如果等于宿主帧就跳过，因为前面已经将宿主帧添加到了顶点。
+    list<Feature *>::iterator it_obs = (*it_pt)->obs_.begin();
+    while (it_obs != (*it_pt)->obs_.end()) {
 
-    for(set<Frame*>::iterator it_kf = core_kfs->begin(); it_kf != core_kfs->end(); ++it_kf)
-    {
-        g2oFrameSE3* v_kf;
-        if((*it_kf)->id_ == 0 || (*it_kf)->keyFrameId_+20 < center_kf->keyFrameId_)
-            v_kf = createG2oFrameSE3((*it_kf), v_id++, true);
-        else
-            v_kf = createG2oFrameSE3((*it_kf), v_id++, false);
+      if ((*it_obs)->frame->id_ == (*it_pt)->hostFeature_->frame->id_) {
+        ++it_obs;
+        continue;
+      }
 
-        (*it_kf)->v_kf_ = v_kf;
-        ++n_var_kfs;
+      g2oFrameSE3 *vTarget = NULL;
+      if ((*it_obs)->frame->v_kf_ == NULL) {
+        g2oFrameSE3 *v_kf = createG2oFrameSE3((*it_obs)->frame, v_id++, true);
+        (*it_obs)->frame->v_kf_ = v_kf;
+        ++n_fix_kfs;
         assert(optimizer.addVertex(v_kf));
 
-        // all points that the core keyframes observe are also optimized:
-        for(Features::iterator it_pt=(*it_kf)->fts_.begin(); it_pt!=(*it_kf)->fts_.end(); ++it_pt)
-        {
-            if((*it_pt)->point == NULL) continue;
+        // neib_kfs:和核心关键帧具有共视关系的帧
+        neib_kfs.push_back((*it_obs)->frame);
+
+        vTarget = v_kf;
+      } else
+        vTarget = (*it_obs)->frame->v_kf_;
+
+      // 添加边
+      if ((*it_obs)->type != Feature::EDGELET) {
+        EdgeProjectID2UV *edge = new EdgeProjectID2UV();
+        edge->resize(3);
+        // 序号ID 和 边的类里面的顶点_vertices[0-2]顺序一致
+        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vPoint)); // 设置边连接的顶点
+        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vHost)); // 设置边连接的顶点
+        edge->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vTarget)); // 设置边连接的顶点
+
+        edge->setHostBearing((*it_pt)->hostFeature_->f);
+
+        // // Gamma fuction
+        // edge->setFocalLenght(center_kf->cam_->errorMultiplier2());
+        // edge->setLevelScale(1.0/(1<<(*it_obs)->level));
+        // edge->setGammaWeight(gamma_weight);
+        // edge->setGamma(use_gamma);
 
 
+        edge->setMeasurement(hso::project2d((*it_obs)->f));
 
-            assert((*it_pt)->point->type_ != Point::TYPE_CANDIDATE);
-            mps.insert((*it_pt)->point);
-        }
+        // 设置信息矩阵（权重矩阵）等于 协方差的逆（假设分布是一个高斯分布）
+        // 金字塔层做权重
+        float inv_sigma2 = 1.0 / ((1 << (*it_obs)->level) * (1 << (*it_obs)->level));
+        // inv_sigma2 *= inv_sigma2;
+        edge->setInformation(Eigen::Matrix2d::Identity() * inv_sigma2);
+
+        // 设置核函数
+        g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber();
+        rk->setDelta(huber_corner);
+        edge->setRobustKernel(rk);
+
+        edge->setParameterId(0, 0);
+
+        edges.push_back(EdgeContainerID(edge, (*it_obs)->frame, *it_obs));
+        assert(optimizer.addEdge(edge));
+      } else {
+        EdgeProjectID2UVEdgeLet *edgeLet = new EdgeProjectID2UVEdgeLet();
+        edgeLet->resize(3);
+        edgeLet->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vPoint));
+        edgeLet->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vHost));
+        edgeLet->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex *>(vTarget));
+
+        edgeLet->setHostBearing((*it_pt)->hostFeature_->f);
+        edgeLet->setTargetNormal((*it_obs)->grad);
+
+        // // // Gamma fuction
+        // edgeLet->setmeasurement2D(hso::project2d((*it_obs)->f));
+        // edgeLet->setFocalLenght(center_kf->cam_->errorMultiplier2());
+        // edgeLet->setLevelScale(1.0/(1<<(*it_obs)->level));
+        // edgeLet->setGammaWeight(gamma_weight);
+        // edgeLet->setGamma(use_gamma);
+
+        edgeLet->setMeasurement((*it_obs)->grad.transpose() * hso::project2d((*it_obs)->f));
+
+        float inv_sigma2 = 1.0 / ((1 << (*it_obs)->level) * (1 << (*it_obs)->level));
+        // inv_sigma2 *= inv_sigma2;
+        edgeLet->setInformation(Eigen::Matrix<double, 1, 1>::Identity() * inv_sigma2);
+
+        g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber();
+        rk->setDelta(huber_edge);
+        edgeLet->setRobustKernel(rk);
+
+        edgeLet->setParameterId(0, 0);
+
+        edgeLets.push_back(EdgeContainerIDEdgeLet(edgeLet, (*it_obs)->frame, *it_obs));
+        assert(optimizer.addEdge(edgeLet));
+      }
+
+      ++n_edges;
+      ++it_obs;
     }
+  }
 
-    
-    
-    vector<float> errors_pt, errors_ls, errors_tt;
-
-
-
-    int n_pt=0, n_ls=0, n_tt=0;
-
-    for(set<Point*>::iterator it_pt = mps.begin(); it_pt!=mps.end(); ++it_pt)
-    {
-        Frame* host_frame = (*it_pt)->hostFeature_->frame;
-        Vector3d pHost = (*it_pt)->hostFeature_->f * (1.0/(*it_pt)->idist_);
-        for(auto it_ft = (*it_pt)->obs_.begin(); it_ft != (*it_pt)->obs_.end(); ++it_ft)
-        {
-            // skip host frame
-            if((*it_ft)->frame->id_ == host_frame->id_) continue;
-            assert((*it_ft)->point == *it_pt);
-
-            SE3 Tth = (*it_ft)->frame->T_f_w_ * host_frame->T_f_w_.inverse();
-            Vector3d pTarget = Tth * pHost;
-            Vector2d e = hso::project2d((*it_ft)->f) - hso::project2d(pTarget);
-            e *= 1.0 / (1<<(*it_ft)->level);
-
-            // float e_norm = e.norm();
-
-            if((*it_ft)->type == Feature::EDGELET)
-            {
-                errors_ls.push_back(fabs((*it_ft)->grad.transpose()*e));
-                n_ls++;
-
-
-            }
-            else
-            {
-                errors_pt.push_back(e.norm());
-                n_pt++;
-
-
-            }
-
-
-        }
+  // Config::lobaNumIter() : 10
+  // 待优化的变量比较少，就少迭代几次
+  if (map->size() > 5) {
+    if (center_kf->fts_.size() < 100) {
+      runSparseBAOptimizer(&optimizer, Config::lobaNumIter() + 10, init_error, final_error);
+    } else {
+      runSparseBAOptimizer(&optimizer, Config::lobaNumIter(), init_error, final_error);
     }
+  } else {
+    runSparseBAOptimizer(&optimizer, 100, init_error, final_error);
+  }
+
+  //[ ***step 6*** ] 对优化的帧和点进行更新, 共视帧不更新位姿
+  for (set<Frame *>::iterator it = core_kfs->begin(); it != core_kfs->end(); ++it) {
+    (*it)->T_f_w_ = SE3((*it)->v_kf_->estimate().rotation(), (*it)->v_kf_->estimate().translation());
+    (*it)->v_kf_ = NULL;
+
+    // if(center_kf->keyFrameId_ - (*it)->keyFrameId_ <= 4)
+    map->point_candidates_.changeCandidatePosition(*it);
+  }
+
+  // 共视帧不更新位姿，因为这些是固定顶点
+  for (list<Frame *>::iterator it = neib_kfs.begin(); it != neib_kfs.end(); ++it) {
+    (*it)->v_kf_ = NULL;
+  }
+  // 共视帧不更新位姿，因为这些是固定顶点
+  for (list<Frame *>::iterator it = hostKeyFrame.begin(); it != hostKeyFrame.end(); ++it) {
+    (*it)->v_kf_ = NULL;
+  }
+  // Update Mappoints
+  // 更新地图点
+  for (set<Point *>::iterator it = mps.begin(); it != mps.end(); ++it) {
+    (*it)->idist_ = (*it)->vPoint_->estimate();
+    (*it)->vPoint_ = NULL;
+
+    //update position
+    Vector3d pHost = (*it)->hostFeature_->f * (1.0 / (*it)->idist_);
+    (*it)->pos_ = (*it)->hostFeature_->frame->T_f_w_.inverse() * pHost;
+  }
 
 
-    // calc huber threshold
-    float huber_corner,huber_edge;
-    if(!errors_pt.empty() && !errors_ls.empty())
-    {
-        huber_corner = 1.4826*hso::getMedian(errors_pt);
-        huber_edge = 1.4826*hso::getMedian(errors_ls);
+  // reproj_thresh_2 大于 reproj_thresh_1
+  const double reproj_thresh_2 = 2.0 / center_kf->cam_->errorMultiplier2();
+  const double reproj_thresh_1 = 1.2 / center_kf->cam_->errorMultiplier2();
+
+  //[ ***step 7*** ] 删除重投影误差过大的候选点
+  //squared(平方)
+  const double reproj_thresh_2_squared = reproj_thresh_2 * reproj_thresh_2;
+  for (list<EdgeContainerID>::iterator it = edges.begin(); it != edges.end(); ++it) {
+    if (it->feature->point == NULL) continue;
+
+    // We only delete the temprorary point in reprojector
+    // 我们只删除 reprojector 中的临时点
+    if (it->edge->chi2() > reproj_thresh_2_squared) {
+      if (it->feature->point->type_ == Point::TYPE_TEMPORARY) {
+        it->feature->point->isBad_ = true;
+        continue;
+      }
+      map->removePtFrameRef(it->frame, it->feature);
+      ++n_incorrect_edges_1;
     }
-    else if(errors_pt.empty() && !errors_ls.empty())
-    {
-        huber_corner = 1.0 / center_kf->cam_->errorMultiplier2();
-        huber_edge = 1.4826*hso::getMedian(errors_ls);
+  }
+
+  const double reproj_thresh_1_squared = reproj_thresh_1 * reproj_thresh_1;
+  for (list<EdgeContainerIDEdgeLet>::iterator it = edgeLets.begin(); it != edgeLets.end(); ++it) {
+    if (it->feature->point == NULL) continue;
+
+    if (it->edge->chi2() > reproj_thresh_1_squared) {
+      if (it->feature->point->type_ == Point::TYPE_TEMPORARY) {
+        it->feature->point->isBad_ = true;
+        continue;
+      }
+      map->removePtFrameRef(it->frame, it->feature);
+      ++n_incorrect_edges_2;
+
+      continue;
     }
-    else if(!errors_pt.empty() && errors_ls.empty())
-    {
-        huber_corner = 1.4826*hso::getMedian(errors_pt);
-        huber_edge   = 0.5 / center_kf->cam_->errorMultiplier2();
-    }
-    else
-    {
-    }
-    
+  }
 
-
-
-
-
-
-
-
-    for(set<Point*>::iterator it_pt = mps.begin(); it_pt!=mps.end(); ++it_pt)
-    {
-        VertexSBAPointID* vPoint = new VertexSBAPointID();
-        vPoint->setId(v_id++);
-        vPoint->setFixed(false);
-        vPoint->setEstimate((*it_pt)->idist_);
-        (*it_pt)->vPoint_ = vPoint;
-        (*it_pt)->nBA_++;
-
-        // Add Host Frame 
-        g2oFrameSE3* vHost = NULL;
-        if((*it_pt)->hostFeature_->frame->v_kf_ == NULL)
-        {
-            g2oFrameSE3* v_kf = createG2oFrameSE3((*it_pt)->hostFeature_->frame, v_id++, true);
-            (*it_pt)->hostFeature_->frame->v_kf_ = v_kf;
-            ++n_fix_kfs;
-            assert(optimizer.addVertex(v_kf));
-            hostKeyFrame.push_back((*it_pt)->hostFeature_->frame);
-            vHost = v_kf;
-        }
-        else
-            vHost = (*it_pt)->hostFeature_->frame->v_kf_;
-
-        assert(optimizer.addVertex(vPoint));
-        ++n_mps;
-
-        // add other target frame
-        // assert((*it_pt)->obs_.size() > 1);
-        list<Feature*>::iterator it_obs=(*it_pt)->obs_.begin();
-        while(it_obs!=(*it_pt)->obs_.end())
-        {
-            if((*it_obs)->frame->id_ == (*it_pt)->hostFeature_->frame->id_)
-            {
-                ++it_obs;
-                continue;
-            }
-
-            g2oFrameSE3* vTarget = NULL;
-            if((*it_obs)->frame->v_kf_ == NULL)
-            {
-                g2oFrameSE3* v_kf = createG2oFrameSE3((*it_obs)->frame, v_id++, true);
-                (*it_obs)->frame->v_kf_ = v_kf;
-                ++n_fix_kfs;
-                assert(optimizer.addVertex(v_kf));
-                neib_kfs.push_back((*it_obs)->frame);
-
-                vTarget = v_kf;
-            }
-            else
-                vTarget = (*it_obs)->frame->v_kf_;
-
-            if((*it_obs)->type != Feature::EDGELET)
-            {
-                EdgeProjectID2UV* edge = new EdgeProjectID2UV();
-                edge->resize(3);
-                edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vPoint));
-                edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vHost));
-                edge->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vTarget));
-
-                edge->setHostBearing((*it_pt)->hostFeature_->f);
-
-                // // Gamma fuction
-                // edge->setFocalLenght(center_kf->cam_->errorMultiplier2());
-                // edge->setLevelScale(1.0/(1<<(*it_obs)->level));
-                // edge->setGammaWeight(gamma_weight);
-                // edge->setGamma(use_gamma);
-
-
-                edge->setMeasurement(hso::project2d((*it_obs)->f));
-
-                float inv_sigma2 = 1.0/((1<<(*it_obs)->level)*(1<<(*it_obs)->level));
-                // inv_sigma2 *= inv_sigma2;
-                edge->setInformation(Eigen::Matrix2d::Identity() * inv_sigma2);
-
-                g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber();      
-                rk->setDelta(huber_corner);
-                edge->setRobustKernel(rk);
-            
-
-                edge->setParameterId(0, 0); 
-     
-                edges.push_back(EdgeContainerID(edge, (*it_obs)->frame, *it_obs));  
-                assert(optimizer.addEdge(edge));
-            }
-            else
-            {
-                EdgeProjectID2UVEdgeLet* edgeLet = new EdgeProjectID2UVEdgeLet();
-                edgeLet->resize(3);
-                edgeLet->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vPoint));
-                edgeLet->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vHost));
-                edgeLet->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vTarget));
-
-                edgeLet->setHostBearing((*it_pt)->hostFeature_->f);
-                edgeLet->setTargetNormal((*it_obs)->grad);
-
-                // // // Gamma fuction
-                // edgeLet->setmeasurement2D(hso::project2d((*it_obs)->f));
-                // edgeLet->setFocalLenght(center_kf->cam_->errorMultiplier2());
-                // edgeLet->setLevelScale(1.0/(1<<(*it_obs)->level));
-                // edgeLet->setGammaWeight(gamma_weight);
-                // edgeLet->setGamma(use_gamma);
-
-                edgeLet->setMeasurement((*it_obs)->grad.transpose()*hso::project2d((*it_obs)->f));
-
-                float inv_sigma2 = 1.0/((1<<(*it_obs)->level)*(1<<(*it_obs)->level));
-                // inv_sigma2 *= inv_sigma2;
-                edgeLet->setInformation(Eigen::Matrix<double,1,1>::Identity()*inv_sigma2);
-
-                g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber();
-                rk->setDelta(huber_edge);
-                edgeLet->setRobustKernel(rk);
-                
-
-                edgeLet->setParameterId(0, 0); 
-
-                edgeLets.push_back(EdgeContainerIDEdgeLet(edgeLet, (*it_obs)->frame, *it_obs));  
-                assert(optimizer.addEdge(edgeLet));
-            }
-
-            ++n_edges;
-            ++it_obs;
-        }
-    }
-
-
-    if(map->size() > 5)
-    {
-        if(center_kf->fts_.size() < 100)
-            runSparseBAOptimizer(&optimizer, Config::lobaNumIter()+10, init_error, final_error);
-        else
-            runSparseBAOptimizer(&optimizer, Config::lobaNumIter(), init_error, final_error);
-    }
-    else
-        runSparseBAOptimizer(&optimizer, 100, init_error, final_error);
-
-
-    for(set<Frame*>::iterator it = core_kfs->begin(); it != core_kfs->end(); ++it)
-    {
-        (*it)->T_f_w_ = SE3( (*it)->v_kf_->estimate().rotation(), (*it)->v_kf_->estimate().translation());
-        (*it)->v_kf_ = NULL;
-
-
-        // if(center_kf->keyFrameId_ - (*it)->keyFrameId_ <= 4)
-        map->point_candidates_.changeCandidatePosition(*it);
-    }
-
-    for(list<Frame*>::iterator it = neib_kfs.begin(); it != neib_kfs.end(); ++it)
-        (*it)->v_kf_ = NULL;
-
-    for(list<Frame*>::iterator it = hostKeyFrame.begin(); it != hostKeyFrame.end(); ++it)
-        (*it)->v_kf_ = NULL;
-
-    // Update Mappoints
-    for(set<Point*>::iterator it = mps.begin(); it != mps.end(); ++it)
-    {
-        (*it)->idist_ = (*it)->vPoint_->estimate();
-        (*it)->vPoint_ = NULL;
-
-        //update position
-        Vector3d pHost = (*it)->hostFeature_->f*(1.0/(*it)->idist_);
-        (*it)->pos_ = (*it)->hostFeature_->frame->T_f_w_.inverse() * pHost;
-    }
-
-
-
-    const double reproj_thresh_2 = 2.0 / center_kf->cam_->errorMultiplier2();
-    const double reproj_thresh_1 = 1.2 / center_kf->cam_->errorMultiplier2();
-
-    const double reproj_thresh_2_squared = reproj_thresh_2*reproj_thresh_2;
-    for(list<EdgeContainerID>::iterator it = edges.begin(); it != edges.end(); ++it)
-    {
-        if(it->feature->point == NULL) continue;
-
-        // We only delete the temprorary point in reprojector
-        if(it->edge->chi2() > reproj_thresh_2_squared)
-        {
-            if(it->feature->point->type_ == Point::TYPE_TEMPORARY) {
-                it->feature->point->isBad_ = true;
-                continue;
-            }
-            map->removePtFrameRef(it->frame, it->feature);
-            ++n_incorrect_edges_1;
-        }
-    }
-
-    const double reproj_thresh_1_squared = reproj_thresh_1*reproj_thresh_1;
-    for(list<EdgeContainerIDEdgeLet>::iterator it = edgeLets.begin(); it != edgeLets.end(); ++it)
-    {
-        if(it->feature->point == NULL) continue;
-
-
-        if(it->edge->chi2() > reproj_thresh_1_squared)
-        {
-            if(it->feature->point->type_ == Point::TYPE_TEMPORARY) {
-                it->feature->point->isBad_ = true;
-                continue;
-            }
-            map->removePtFrameRef(it->frame, it->feature);
-            ++n_incorrect_edges_2;
-
-            continue;
-        }
-    }
-
-
-    init_error  = sqrt(init_error) *center_kf->cam_->errorMultiplier2();
-    final_error = sqrt(final_error)*center_kf->cam_->errorMultiplier2();
+  //* 乘以焦距 f 转化为像素误差
+  init_error = sqrt(init_error) * center_kf->cam_->errorMultiplier2();
+  final_error = sqrt(final_error) * center_kf->cam_->errorMultiplier2();
 }
 } // namespace ba
 } // namespace hso

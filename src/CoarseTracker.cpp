@@ -205,7 +205,7 @@ void CoarseTracker::makeDepthRef() {
 
   size_t feature_counter = 0;
   for (auto it_ft = m_ref_frame->fts_.begin(); it_ft != m_ref_frame->fts_.end(); ++it_ft, ++feature_counter) {
-    if ((*it_ft)->point == nullptr) continue;
+    if ((*it_ft)->point == NULL) continue;
 
     Vector3d p_host = (*it_ft)->point->hostFeature_->f * (1.0 / (*it_ft)->point->idist_); // 宿主帧下特征对应的地图点
     SE3 T_r_h = m_ref_frame->T_f_w_ * (*it_ft)->point->hostFeature_->frame->T_f_w_.inverse(); // 参考帧和宿主帧之间的相对刚体变换
@@ -448,7 +448,7 @@ void CoarseTracker::precomputeReferencePatches() {
        ++ft_it, ++visiblity_it, ++feature_counter) {
     // if((*ft_it)->point == NULL || (*ft_it)->level > m_level)
     //        continue;
-    if ((*ft_it)->point == nullptr)
+    if ((*ft_it)->point == NULL)
       continue;
 
     // check if reference with patch size is within image

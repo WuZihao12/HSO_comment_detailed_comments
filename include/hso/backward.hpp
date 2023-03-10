@@ -383,7 +383,7 @@ using std::move;
 } // namespace details
 } // namespace backward
 #else // NOT BACKWARD_ATLEAST_CXX11
-#define nullptr NULL
+#define NULL NULL
 #define override
 #include <map>
 namespace backward {
@@ -535,7 +535,7 @@ public:
 
   operator const dummy *() const {
     if (_empty) {
-      return nullptr;
+      return NULL;
     }
     return reinterpret_cast<const dummy *>(_val);
   }
@@ -580,7 +580,7 @@ template <> struct demangler_impl<system_tag::current_tag> {
   std::string demangle(const char *funcname) {
     using namespace details;
     char *result = abi::__cxa_demangle(funcname, _demangle_buffer.get(),
-                                       &_demangle_buffer_length, nullptr);
+                                       &_demangle_buffer_length, NULL);
     if (result) {
       _demangle_buffer.update(result);
       return result;
@@ -628,7 +628,7 @@ struct Trace {
   void *addr;
   size_t idx;
 
-  Trace() : addr(nullptr), idx(0) {}
+  Trace() : addr(NULL), idx(0) {}
 
   explicit Trace(void *_addr, size_t _idx) : addr(_addr), idx(_idx) {}
 };
@@ -739,7 +739,7 @@ public:
     if (size()) {
       return &_stacktrace[skip_n_firsts()];
     }
-    return nullptr;
+    return NULL;
   }
 
 protected:
@@ -968,7 +968,7 @@ public:
 private:
   DWORD machine_type_ = 0;
   HANDLE thd_ = 0;
-  CONTEXT *ctx_ = nullptr;
+  CONTEXT *ctx_ = NULL;
 };
 
 #endif
@@ -3497,7 +3497,7 @@ public:
   void swap(SourceFile &b) { _file.swap(b._file); }
 
 #ifdef BACKWARD_ATLEAST_CXX11
-  SourceFile(SourceFile &&from) : _file(nullptr) { swap(from); }
+  SourceFile(SourceFile &&from) : _file(NULL) { swap(from); }
   SourceFile &operator=(SourceFile &&from) {
     swap(from);
     return *this;
@@ -3833,11 +3833,11 @@ private:
 
   void print_source_loc(std::ostream &os, const char *indent,
                         const ResolvedTrace::SourceLoc &source_loc,
-                        void *addr = nullptr) {
+                        void *addr = NULL) {
     os << indent << "Source \"" << source_loc.filename << "\", line "
        << source_loc.line << ", in " << source_loc.function;
 
-    if (address && addr != nullptr) {
+    if (address && addr != NULL) {
       os << " [" << addr << "]";
     }
     os << "\n";
@@ -3884,7 +3884,7 @@ public:
       ss.ss_sp = _stack_content.get();
       ss.ss_size = stack_size;
       ss.ss_flags = 0;
-      if (sigaltstack(&ss, nullptr) < 0) {
+      if (sigaltstack(&ss, NULL) < 0) {
         success = false;
       }
     } else {
@@ -3907,7 +3907,7 @@ public:
 #pragma clang diagnostic pop
 #endif
 
-      int r = sigaction(posix_signals[i], &action, nullptr);
+      int r = sigaction(posix_signals[i], &action, NULL);
       if (r < 0)
         success = false;
     }
@@ -3921,7 +3921,7 @@ public:
     ucontext_t *uctx = static_cast<ucontext_t *>(_ctx);
 
     StackTrace st;
-    void *error_addr = nullptr;
+    void *error_addr = NULL;
 #ifdef REG_RIP // x86_64
     error_addr = reinterpret_cast<void *>(uctx->uc_mcontext.gregs[REG_RIP]);
 #elif defined(REG_EIP) // x86_32
@@ -3956,7 +3956,7 @@ public:
     printer.print(st, stderr);
 
 #if _XOPEN_SOURCE >= 700 || _POSIX_C_SOURCE >= 200809L
-    psiginfo(info, nullptr);
+    psiginfo(info, NULL);
 #else
     (void)info;
 #endif
@@ -4109,9 +4109,9 @@ private:
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  NOINLINE static void crash_handler(int skip, CONTEXT *ct = nullptr) {
+  NOINLINE static void crash_handler(int skip, CONTEXT *ct = NULL) {
 
-    if (ct == nullptr) {
+    if (ct == NULL) {
       RtlCaptureContext(ctx());
     } else {
       memcpy(ctx(), ct, sizeof(CONTEXT));

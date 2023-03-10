@@ -131,7 +131,7 @@ void Reprojector::reprojectMap(
        ++it) {
 
     Frame *repframe = *it;
-    FramePtr repFrame = nullptr;
+    FramePtr repFrame = NULL;
     if (!map_.getKeyframeById(repframe->id_, repFrame))
       continue;
 
@@ -143,7 +143,7 @@ void Reprojector::reprojectMap(
     overlap_kfs.push_back(pair<FramePtr, size_t>(repFrame, 0));
 
     for (auto ite = repFrame->fts_.begin(); ite != repFrame->fts_.end(); ++ite) {
-      if ((*ite)->point == nullptr)
+      if ((*ite)->point == NULL)
         continue;
 
       if ((*ite)->point->type_ == Point::TYPE_TEMPORARY)
@@ -197,7 +197,7 @@ void Reprojector::reprojectMap(
       // check if the feature has a mappoint assigned
 
       //拒绝地图点为空
-      if ((*it_ftr)->point == nullptr)
+      if ((*it_ftr)->point == NULL)
         continue;
 
       // 拒绝临时地图点
@@ -455,7 +455,7 @@ bool Reprojector::reprojectorSeeds(Sell &sell, FramePtr frame) {
   Sell::iterator it = sell.begin();
   while (it != sell.end()) {
     if (matcher_.findMatchSeed(it->seed, *frame, it->px)) {
-      assert(it->seed.ftr->point == nullptr);
+      assert(it->seed.ftr->point == NULL);
 
       ++n_seeds_;
       sum_seed_++;

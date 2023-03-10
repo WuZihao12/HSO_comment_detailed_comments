@@ -7,6 +7,8 @@
 #include <cstdio>
 
 #include "hso/system.h"
+
+
 const int G_MAX_RESOLUTION = 848 * 800;
 hso::System::~System() {
   delete vo_;

@@ -60,352 +60,334 @@ class EdgeProjectID2UVEdgeLet;
 namespace ba {
 
 /// Temporary container to hold the g2o edge with reference to frame and point.
-struct EdgeContainerSE3
-{
-  g2oEdgeSE3*     edge;
-  Frame*          frame;
-  Feature*        feature;
-  bool            is_deleted;
-  EdgeContainerSE3(g2oEdgeSE3* e, Frame* frame, Feature* feature) :
-    edge(e), frame(frame), feature(feature), is_deleted(false)
-  {}
+struct EdgeContainerSE3 {
+  g2oEdgeSE3 *edge;
+  Frame *frame;
+  Feature *feature;
+  bool is_deleted;
+  EdgeContainerSE3(g2oEdgeSE3 *e, Frame *frame, Feature *feature) :
+      edge(e), frame(frame), feature(feature), is_deleted(false) {}
 };
 
-struct EdgeContainerEdgelet
-{
-  rdvoEdgeProjectXYZ2UV*  edge;
-  Frame*                  frame;
-  Feature*                feature;
-  bool                    is_deleted;
-  EdgeContainerEdgelet(rdvoEdgeProjectXYZ2UV* e, Frame* frame, Feature* feature) :
-    edge(e), frame(frame), feature(feature), is_deleted(false)
-  {}
+struct EdgeContainerEdgelet {
+  rdvoEdgeProjectXYZ2UV *edge;
+  Frame *frame;
+  Feature *feature;
+  bool is_deleted;
+  EdgeContainerEdgelet(rdvoEdgeProjectXYZ2UV *e, Frame *frame, Feature *feature) :
+      edge(e), frame(frame), feature(feature), is_deleted(false) {}
 };
 
 //TODO: abstract
-struct EdgeContainerID
-{
-    EdgeProjectID2UV* edge;
-    Frame* frame;
-    Feature* feature;
-    bool is_deleted;
+struct EdgeContainerID {
+  EdgeProjectID2UV *edge;
+  Frame *frame;
+  Feature *feature;
+  bool is_deleted;
 
-    EdgeContainerID(EdgeProjectID2UV* e, Frame* frame, Feature* feature) :
-    edge(e), frame(frame), feature(feature), is_deleted(false) {}
+  EdgeContainerID(EdgeProjectID2UV *e, Frame *frame, Feature *feature) :
+      edge(e), frame(frame), feature(feature), is_deleted(false) {}
 };
 //TODO: abstract
-struct EdgeContainerIDEdgeLet
-{
-    EdgeProjectID2UVEdgeLet* edge;
-    Frame* frame;
-    Feature* feature;
-    bool is_deleted;
+struct EdgeContainerIDEdgeLet {
+  EdgeProjectID2UVEdgeLet *edge;
+  Frame *frame;
+  Feature *feature;
+  bool is_deleted;
 
-    EdgeContainerIDEdgeLet(EdgeProjectID2UVEdgeLet* e, Frame* frame, Feature* feature):
-    edge(e), frame(frame), feature(feature), is_deleted(false) {}
+  EdgeContainerIDEdgeLet(EdgeProjectID2UVEdgeLet *e, Frame *frame, Feature *feature) :
+      edge(e), frame(frame), feature(feature), is_deleted(false) {}
 };
-
 
 /// Optimize two camera frames and their observed 3D points.
 /// Is used after initialization.
-void twoViewBA(Frame* frame1, Frame* frame2, double reproj_thresh, Map* map);
+void twoViewBA(Frame *frame1, Frame *frame2, double reproj_thresh, Map *map);
 
 /// Local bundle adjustment.
 /// Optimizes core_kfs and their observed map points while keeping the
 /// neighbourhood fixed.
 void localBA(
-    Frame* center_kf,
-    set<Frame*>* core_kfs,
-    Map* map,
-    size_t& n_incorrect_edges_1,
-    size_t& n_incorrect_edges_2,
-    double& init_error,
-    double& final_error,
+    Frame *center_kf,
+    set<Frame *> *core_kfs,
+    Map *map,
+    size_t &n_incorrect_edges_1,
+    size_t &n_incorrect_edges_2,
+    double &init_error,
+    double &final_error,
     FramePtr LastKeyFrame = NULL);
 
 /// Global bundle adjustment.
 /// Optimizes the whole map. Is currently not used in HSO.
-void globalBA(Map* map);
+void globalBA(Map *map);
 
 /// Initialize g2o with solver type, optimization strategy and camera model.
-void setupG2o(g2o::SparseOptimizer * optimizer);
+void setupG2o(g2o::SparseOptimizer *optimizer);
 
 /// Run the optimization on the provided graph.
 void runSparseBAOptimizer(
-    g2o::SparseOptimizer* optimizer,
+    g2o::SparseOptimizer *optimizer,
     unsigned int num_iter,
-    double& init_error,
-    double& final_error);
+    double &init_error,
+    double &final_error);
 
 /// Create a g2o vertice from a keyframe object.
-g2oFrameSE3* createG2oFrameSE3(
-    Frame* kf,
+g2oFrameSE3 *createG2oFrameSE3(
+    Frame *kf,
     size_t id,
     bool fixed);
 
 /// Creates a g2o vertice from a mappoint object.
-g2oPoint* createG2oPoint(
+g2oPoint *createG2oPoint(
     Vector3d pos,
     size_t id,
     bool fixed);
 
 /// Creates a g2o edge between a g2o keyframe and mappoint vertice with the provided measurement.
-g2oEdgeSE3* createG2oEdgeSE3(
-    g2oFrameSE3* v_kf,
-    g2oPoint* v_mp,
-    const Vector2d& f_up,
+g2oEdgeSE3 *createG2oEdgeSE3(
+    g2oFrameSE3 *v_kf,
+    g2oPoint *v_mp,
+    const Vector2d &f_up,
     bool robust_kernel,
     double huber_width,
     double weight = 1);
 
-rdvoEdgeProjectXYZ2UV* createG2oEdgeletSE3(
-    g2oFrameSE3* v_kf,
-    g2oPoint* v_mp,
-    const Vector2d& f_up,
+rdvoEdgeProjectXYZ2UV *createG2oEdgeletSE3(
+    g2oFrameSE3 *v_kf,
+    g2oPoint *v_mp,
+    const Vector2d &f_up,
     bool robust_kernel,
     double huber_width,
     double weight = 1,
-    const Vector2d& grad = Vector2d(0,0));
+    const Vector2d &grad = Vector2d(0, 0));
 
-void LocalBundleAdjustment(Frame* center_kf,
-    set<Frame*>* core_kfs,
-    Map* map,
-    size_t& n_incorrect_edges_1,
-    size_t& n_incorrect_edges_2,
-    double& init_error,
-    double& final_error);
+void LocalBundleAdjustment(Frame *center_kf,
+                           set<Frame *> *core_kfs,
+                           Map *map,
+                           size_t &n_incorrect_edges_1,
+                           size_t &n_incorrect_edges_2,
+                           double &init_error,
+                           double &final_error);
 
-void initializationBA(Frame* frame1, Frame* frame2, double reproj_thresh, Map* map);
+void initializationBA(Frame *frame1, Frame *frame2, double reproj_thresh, Map *map);
 
 } // namespace ba
 
 
 
 
-class VertexSBAPointID : public BaseVertex<1, double>
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    VertexSBAPointID() : BaseVertex<1, double>()
-    {}
+class VertexSBAPointID : public BaseVertex<1, double> {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  VertexSBAPointID() : BaseVertex<1, double>() {}
 
-    virtual bool read(std::istream& is) { return true; }
-    virtual bool write(std::ostream& os) const { return true; } 
+  virtual bool read(std::istream &is) { return true; }
+  virtual bool write(std::ostream &os) const { return true; }
 
-    virtual void setToOriginImpl() {
-        _estimate = 0;
-    }
+  void setToOriginImpl() override {
+    _estimate = 0;
+  }
 
-    virtual void oplusImpl(const double* update) {
-        _estimate += (*update);
-    }
+  virtual void oplusImpl(const double *update) override {
+    _estimate += (*update);
+  }
 };
 
-class EdgeProjectID2UV : public BaseMultiEdge<2, Vector2d>
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    EdgeProjectID2UV()
-    {
-        // _cam = 0;
-        // resizeParameters(1);
-        // installParameter(_cam, 0);
-    }
+class EdgeProjectID2UV : public BaseMultiEdge<2, Vector2d> {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  EdgeProjectID2UV() {
+    // _cam = 0;
+    // resizeParameters(1);
+    // installParameter(_cam, 0);
+  }
 
-    virtual bool read(std::istream& is) {return true;}
+  virtual bool read(std::istream &is) { return true; }
 
-    virtual bool write(std::ostream& os) const {return true;}
+  virtual bool write(std::ostream &os) const { return true; }
 
-    void computeError()
-    {
-        const VertexSBAPointID* point = static_cast<const VertexSBAPointID*>(_vertices[0]);
-        const VertexSE3Expmap* host   = static_cast<const VertexSE3Expmap*>(_vertices[1]); 
-        const VertexSE3Expmap* target = static_cast<const VertexSE3Expmap*>(_vertices[2]); 
-        // const CameraParameters * cam  = static_cast<const CameraParameters *>(parameter(0));
+  virtual void computeError() override {
+    const VertexSBAPointID *point = static_cast<const VertexSBAPointID *>(_vertices[0]);
+    const VertexSE3Expmap *host = static_cast<const VertexSE3Expmap *>(_vertices[1]);
+    const VertexSE3Expmap *target = static_cast<const VertexSE3Expmap *>(_vertices[2]);
+    // const CameraParameters * cam  = static_cast<const CameraParameters *>(parameter(0));
 
-        SE3 Ttw = SE3(target->estimate().rotation(), target->estimate().translation());
-        SE3 Thw = SE3(host->estimate().rotation(), host->estimate().translation());
-        SE3 Tth = Ttw*Thw.inverse();
+    SE3 Ttw = SE3(target->estimate().rotation(), target->estimate().translation());
+    SE3 Thw = SE3(host->estimate().rotation(), host->estimate().translation());
+    SE3 Tth = Ttw * Thw.inverse();
 
-        Vector2d obs(_measurement);
-        _error = obs - cam_project( Tth * (_fH*(1.0/point->estimate())) );
-        
-    }
+    Vector2d obs(_measurement);
+    _error = obs - cam_project(Tth * (_fH * (1.0 / point->estimate())));
 
-    virtual void linearizeOplus()
-    {
-        VertexSBAPointID* vp = static_cast<VertexSBAPointID*>(_vertices[0]);
-        double idHost = vp->estimate();
+  }
 
-        VertexSE3Expmap * vh = static_cast<VertexSE3Expmap *>(_vertices[1]);
-        SE3 Thw(vh->estimate().rotation(), vh->estimate().translation());
-        VertexSE3Expmap * vt = static_cast<VertexSE3Expmap *>(_vertices[2]);
-        SE3 Ttw(vt->estimate().rotation(), vt->estimate().translation());
+  virtual void linearizeOplus() override {
+    VertexSBAPointID *vp = static_cast<VertexSBAPointID *>(_vertices[0]);
+    double idHost = vp->estimate();
 
-        SE3 Tth = Ttw*Thw.inverse();
-        Vector3d t_th = Tth.translation();
-        Matrix3d R_th = Tth.rotation_matrix();
-        Vector3d Rf = R_th*_fH;
-        Vector3d pTarget = Tth * (_fH*(1.0/idHost));
-        Vector2d proj = hso::project2d(pTarget);
+    VertexSE3Expmap *vh = static_cast<VertexSE3Expmap *>(_vertices[1]);
+    SE3 Thw(vh->estimate().rotation(), vh->estimate().translation());
+    VertexSE3Expmap *vt = static_cast<VertexSE3Expmap *>(_vertices[2]);
+    SE3 Ttw(vt->estimate().rotation(), vt->estimate().translation());
+
+    SE3 Tth = Ttw * Thw.inverse();
+    Vector3d t_th = Tth.translation();
+    Matrix3d R_th = Tth.rotation_matrix();
+    Vector3d Rf = R_th * _fH;
+    Vector3d pTarget = Tth * (_fH * (1.0 / idHost));
+    Vector2d proj = hso::project2d(pTarget);
+
+    // 残差对点的逆深度值雅可比矩阵
+    Vector2d Juvdd;
+    Juvdd[0] = -(t_th[0] - proj[0] * t_th[2]) / (Rf[2] + idHost * t_th[2]);
+    Juvdd[1] = -(t_th[1] - proj[1] * t_th[2]) / (Rf[2] + idHost * t_th[2]);
+    _jacobianOplus[0] = Juvdd;
+
+    Matrix<double, 2, 6> Jpdxi;
+    double x = pTarget[0];
+    double y = pTarget[1];
+    double z = pTarget[2];
+    double z_2 = z * z;
+
+    // 归一化图像坐标系可以理解为焦距f=1的成像平面。
+    Jpdxi(0, 0) = x * y / z_2;
+    Jpdxi(0, 1) = -(1 + (x * x / z_2));
+    Jpdxi(0, 2) = y / z;
+    Jpdxi(0, 3) = -1. / z;
+    Jpdxi(0, 4) = 0;
+    Jpdxi(0, 5) = x / z_2;
+
+    Jpdxi(1, 0) = (1 + y * y / z_2);
+    Jpdxi(1, 1) = -x * y / z_2;
+    Jpdxi(1, 2) = -x / z;
+    Jpdxi(1, 3) = 0;
+    Jpdxi(1, 4) = -1. / z;
+    Jpdxi(1, 5) = y / z_2;
+
+    Matrix<double, 6, 6> adHost;
+    adHost = -Tth.Adj();
+
+    Matrix<double, 6, 6> adTarget;
+    adTarget = Matrix<double, 6, 6>::Identity();
 
 
-        Vector2d Juvdd;
-        Juvdd[0] = -(t_th[0] - proj[0]*t_th[2]) / (Rf[2] + idHost*t_th[2]);
-        Juvdd[1] = -(t_th[1] - proj[1]*t_th[2]) / (Rf[2] + idHost*t_th[2]);
-        _jacobianOplus[0] = Juvdd;
+    // 将当前帧下的导数转换到参考帧上 youcheng
+    // 右乘绕自身坐标系旋转，相当于是坐标变换，将雅可比矩阵变换到参考帧。
+    _jacobianOplus[1] = Jpdxi * adHost;
 
-        Matrix<double,2,6> Jpdxi;
-        double x = pTarget[0];
-        double y = pTarget[1];
-        double z = pTarget[2];
-        double z_2 = z*z;
+    // 当前关键帧下的 2D观测误差对其位姿的求导
+    _jacobianOplus[2] = Jpdxi * adTarget;
 
-        Jpdxi(0,0) = x*y/z_2;
-        Jpdxi(0,1) = -(1+(x*x/z_2));
-        Jpdxi(0,2) = y/z;
-        Jpdxi(0,3) = -1./z;
-        Jpdxi(0,4) = 0;
-        Jpdxi(0,5) = x/z_2;
+  }
 
-        Jpdxi(1,0) = (1+y*y/z_2);
-        Jpdxi(1,1) = -x*y/z_2;
-        Jpdxi(1,2) = -x/z;
-        Jpdxi(1,3) = 0;
-        Jpdxi(1,4) = -1./z;
-        Jpdxi(1,5) = y/z_2;
+  Vector3d _fH;
+  void setHostBearing(Vector3d f) {
+    _fH = f;
+  }
 
-        Matrix<double,6,6> adHost;
-        adHost = -Tth.Adj();
-
-        Matrix<double,6,6> adTarget;
-        adTarget = Matrix<double,6,6>::Identity();
-
-        _jacobianOplus[1] = Jpdxi*adHost;
-        _jacobianOplus[2] = Jpdxi*adTarget;
-        
-    }
-
-    Vector3d _fH;
-    void setHostBearing(Vector3d f) 
-    {
-        _fH = f;
-    }
-
-    // CameraParameters * _cam;
-    Vector2d cam_project(const Vector3d & trans_xyz)
-    {
-        return hso::project2d(trans_xyz);
-    }
+  // CameraParameters * _cam;
+  Vector2d cam_project(const Vector3d &trans_xyz) {
+    return hso::project2d(trans_xyz);
+  }
 };
 
-class EdgeProjectID2UVEdgeLet : public BaseMultiEdge<1, double>
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    EdgeProjectID2UVEdgeLet()
-    {
-        // _cam = 0;
-        // resizeParameters(1);
-        // installParameter(_cam, 0);
-    }
+class EdgeProjectID2UVEdgeLet : public BaseMultiEdge<1, double> {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  EdgeProjectID2UVEdgeLet() {
+    // _cam = 0;
+    // resizeParameters(1);
+    // installParameter(_cam, 0);
+  }
 
-    virtual bool read(std::istream& is) {return true;}
+  virtual bool read(std::istream &is) { return true; }
 
-    virtual bool write(std::ostream& os) const {return true;}
+  virtual bool write(std::ostream &os) const { return true; }
 
-    void computeError()
-    {
-        const VertexSBAPointID* point = static_cast<const VertexSBAPointID*>(_vertices[0]);
-        const VertexSE3Expmap* host = static_cast<const VertexSE3Expmap*>(_vertices[1]); 
-        const VertexSE3Expmap* target = static_cast<const VertexSE3Expmap*>(_vertices[2]); 
-        // const CameraParameters * cam = static_cast<const CameraParameters *>(parameter(0));
+  virtual void computeError() override {
+    const VertexSBAPointID *point = static_cast<const VertexSBAPointID *>(_vertices[0]);
+    const VertexSE3Expmap *host = static_cast<const VertexSE3Expmap *>(_vertices[1]);
+    const VertexSE3Expmap *target = static_cast<const VertexSE3Expmap *>(_vertices[2]);
+    // const CameraParameters * cam = static_cast<const CameraParameters *>(parameter(0));
 
-        SE3 Ttw = SE3(target->estimate().rotation(), target->estimate().translation());
-        SE3 Thw = SE3(host->estimate().rotation(), host->estimate().translation());
-        SE3 Tth = Ttw*Thw.inverse();
+    SE3 Ttw = SE3(target->estimate().rotation(), target->estimate().translation());
+    SE3 Thw = SE3(host->estimate().rotation(), host->estimate().translation());
+    SE3 Tth = Ttw * Thw.inverse();
 
-        double obs = _measurement;
-        // _error = obs - cam->cam_map( Tth * (_fH*(1.0/point->estimate())) );
-        _error(0,0) = obs - _normal.transpose()*cam_project( Tth * (_fH*(1.0/point->estimate())) );     
-    }
+    double obs = _measurement;
+    // _error = obs - cam->cam_map( Tth * (_fH*(1.0/point->estimate())) );
+    _error(0, 0) = obs - _normal.transpose() * cam_project(Tth * (_fH * (1.0 / point->estimate())));
+  }
 
-    virtual void linearizeOplus()
-    {
-        VertexSBAPointID* vp = static_cast<VertexSBAPointID*>(_vertices[0]);
-        double idHost = vp->estimate();
+  virtual void linearizeOplus() override {
+    VertexSBAPointID *vp = static_cast<VertexSBAPointID *>(_vertices[0]);
+    double idHost = vp->estimate();
 
-        VertexSE3Expmap * vh = static_cast<VertexSE3Expmap *>(_vertices[1]);
-        SE3 Thw(vh->estimate().rotation(), vh->estimate().translation());
-        VertexSE3Expmap * vt = static_cast<VertexSE3Expmap *>(_vertices[2]);
-        SE3 Ttw(vt->estimate().rotation(), vt->estimate().translation());
+    VertexSE3Expmap *vh = static_cast<VertexSE3Expmap *>(_vertices[1]);
+    SE3 Thw(vh->estimate().rotation(), vh->estimate().translation());
+    VertexSE3Expmap *vt = static_cast<VertexSE3Expmap *>(_vertices[2]);
+    SE3 Ttw(vt->estimate().rotation(), vt->estimate().translation());
 
-        SE3 Tth = Ttw*Thw.inverse();
-        Vector3d t_th = Tth.translation();
-        Matrix3d R_th = Tth.rotation_matrix();
-        Vector3d Rf = R_th*_fH;
-        Vector3d pTarget = Tth * (_fH*(1.0/idHost));
-        Vector2d proj = hso::project2d(pTarget);
+    SE3 Tth = Ttw * Thw.inverse();
+    Vector3d t_th = Tth.translation();
+    Matrix3d R_th = Tth.rotation_matrix();
+    Vector3d Rf = R_th * _fH;
+    Vector3d pTarget = Tth * (_fH * (1.0 / idHost));
+    Vector2d proj = hso::project2d(pTarget);
 
-        Vector2d Juvdd;
-        Juvdd[0] = -(t_th[0] - proj[0]*t_th[2]) / (Rf[2] + idHost*t_th[2]);
-        Juvdd[1] = -(t_th[1] - proj[1]*t_th[2]) / (Rf[2] + idHost*t_th[2]);
-        _jacobianOplus[0] = _normal.transpose()*Juvdd;
+    Vector2d Juvdd;
+    Juvdd[0] = -(t_th[0] - proj[0] * t_th[2]) / (Rf[2] + idHost * t_th[2]);
+    Juvdd[1] = -(t_th[1] - proj[1] * t_th[2]) / (Rf[2] + idHost * t_th[2]);
+    _jacobianOplus[0] = _normal.transpose() * Juvdd;
 
-        Matrix<double,2,6> Jpdxi;
-        double x = pTarget[0];
-        double y = pTarget[1];
-        double z = pTarget[2];
-        double z_2 = z*z;
+    Matrix<double, 2, 6> Jpdxi;
+    double x = pTarget[0];
+    double y = pTarget[1];
+    double z = pTarget[2];
+    double z_2 = z * z;
 
-        Jpdxi(0,0) = x*y/z_2;
-        Jpdxi(0,1) = -(1+(x*x/z_2));
-        Jpdxi(0,2) = y/z;
-        Jpdxi(0,3) = -1./z;
-        Jpdxi(0,4) = 0;
-        Jpdxi(0,5) = x/z_2;
+    Jpdxi(0, 0) = x * y / z_2;
+    Jpdxi(0, 1) = -(1 + (x * x / z_2));
+    Jpdxi(0, 2) = y / z;
+    Jpdxi(0, 3) = -1. / z;
+    Jpdxi(0, 4) = 0;
+    Jpdxi(0, 5) = x / z_2;
 
-        Jpdxi(1,0) = (1+y*y/z_2);
-        Jpdxi(1,1) = -x*y/z_2;
-        Jpdxi(1,2) = -x/z;
-        Jpdxi(1,3) = 0;
-        Jpdxi(1,4) = -1./z;
-        Jpdxi(1,5) = y/z_2;
+    Jpdxi(1, 0) = (1 + y * y / z_2);
+    Jpdxi(1, 1) = -x * y / z_2;
+    Jpdxi(1, 2) = -x / z;
+    Jpdxi(1, 3) = 0;
+    Jpdxi(1, 4) = -1. / z;
+    Jpdxi(1, 5) = y / z_2;
 
-        Matrix<double,6,6> adHost;
-        adHost = -Tth.Adj();
+    Matrix<double, 6, 6> adHost;
+    adHost = -Tth.Adj();
 
-        Matrix<double,6,6> adTarget;
-        adTarget = Matrix<double,6,6>::Identity();
+    Matrix<double, 6, 6> adTarget;
+    adTarget = Matrix<double, 6, 6>::Identity();
 
-        _jacobianOplus[1] = _normal.transpose()*Jpdxi*adHost;
-        _jacobianOplus[2] = _normal.transpose()*Jpdxi*adTarget;
-        
-    }
+    _jacobianOplus[1] = _normal.transpose() * Jpdxi * adHost;
+    _jacobianOplus[2] = _normal.transpose() * Jpdxi * adTarget;
 
-    Vector3d _fH;
-    void setHostBearing(Vector3d f) 
-    {
-        _fH = f;
-    }
+  }
 
-    Vector2d _normal;
-    void setTargetNormal(Vector2d n) 
-    {
-        _normal = n;
-    }
+  Vector3d _fH;
+  void setHostBearing(Vector3d f) {
+    _fH = f;
+  }
 
+  Vector2d _normal;
+  void setTargetNormal(Vector2d n) {
+    _normal = n;
+  }
 
-    // CameraParameters * _cam;
-    Vector2d cam_project(const Vector3d & trans_xyz)
-    {
-        return hso::project2d(trans_xyz);
-    }
+  // CameraParameters * _cam;
+  Vector2d cam_project(const Vector3d &trans_xyz) {
+    return hso::project2d(trans_xyz);
+  }
 };
 
-
-class rdvoEdgeProjectXYZ2UV : public BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexSE3Expmap>{
-public:
+class rdvoEdgeProjectXYZ2UV : public BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexSE3Expmap> {
+ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   rdvoEdgeProjectXYZ2UV() : BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexSE3Expmap>() {
@@ -414,11 +396,11 @@ public:
     // installParameter(_cam, 0);
   }
 
-  virtual bool read(std::istream& is) {return true;}
+  virtual bool read(std::istream &is) { return true; }
 
-  virtual bool write(std::ostream& os) const {return true;}
+  virtual bool write(std::ostream &os) const { return true; }
 
-  void computeError()  {
+  void computeError() {
     // const VertexSE3Expmap* v1 = static_cast<const VertexSE3Expmap*>(_vertices[1]);
     // const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
     // const CameraParameters * cam = static_cast<const CameraParameters *>(parameter(0));
@@ -470,7 +452,7 @@ public:
     // _jacobianOplusXj = _grad.transpose() * jacobianOplusXj;
   }
 
-  void setGrad(const Vector2d& g) { _grad = g; }
+  void setGrad(const Vector2d &g) { _grad = g; }
 
   // CameraParameters * _cam;
   Vector2d _grad;

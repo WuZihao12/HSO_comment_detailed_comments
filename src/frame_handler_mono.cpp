@@ -176,6 +176,11 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame() {
 
   afterInit_ = true;
   firstFrame_->setKeyPoints();
+
+  //TODO: wzh 添加
+  // new_frame_->setKeyframe();
+  // map_.addKeyframe(new_frame_);
+
   return RESULT_IS_KEYFRAME;
 }
 
@@ -198,7 +203,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   */
   if (new_frame_->gradMean_ > last_frame_->gradMean_ + 0.5) {
     //HSO_DEBUG_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
-    HSO_INFO_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
+    // HSO_INFO_STREAM("Img Align:\t Using The Lucas-Kanade Algorithm.");
     boost::timer align;
     HSO_START_TIMER("sparse_img_align");
 
@@ -213,7 +218,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
     HSO_DEBUG_STREAM("Img Align:\t Tracked = " << img_align_n_tracked << "\t \t Cost = " << align.elapsed() << "s");
   } else {
     // HSO_DEBUG_STREAM("Img Align:\t Using The Inverse Compositional Algorithm.");
-    HSO_INFO_STREAM("Img Align:\t Using The Inverse Compositional Algorithm.")
+    // HSO_INFO_STREAM("Img Align:\t Using The Inverse Compositional Algorithm.")
     boost::timer align;
     HSO_START_TIMER("sparse_img_align");
 
@@ -233,12 +238,12 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   boost::timer reprojector;
   HSO_START_TIMER("reproject");
 
-  /*----------------------------------------STEP2: 特征跟踪 ----------------------------------------*/
+  /*----------------------------------------STEP2: 特征跟踪（特征对齐，调整特征位置） ----------------------------------------*/
   reprojector_.reprojectMap(new_frame_, overlap_kfs_);
 
   HSO_STOP_TIMER("reproject");
   const size_t repr_n_new_references = reprojector_.n_matches_; // 匹配的特征点
-  const size_t repr_n_mps = reprojector_.n_trials_;
+  const size_t repr_n_mps = reprojector_.n_trials_; // 尝试匹配的次数(点数)
   const size_t repr_n_sds = reprojector_.n_seeds_;
   const size_t repr_n_fis = reprojector_.n_filters_;
   HSO_LOG2(repr_n_mps, repr_n_new_references);
@@ -254,12 +259,15 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   }
 
   // pose optimization
-  // 对当前帧进行位姿优化（该帧上的重投影误差）
   HSO_START_TIMER("pose_optimizer");
-  // 经过之前的特征对齐，特征点的位置边了，因此要进行单帧位姿优化
+/*
+  对当前帧进行位姿优化（该帧上的重投影误差）
+  因为经过之前的特征对齐，特征点的位置变了，因此要进行单帧位姿优化
+*/
   size_t sfba_n_edges_final = 0; // 误差观测数目,优化完成后的内点数目
   double sfba_thresh = 0, sfba_error_init = 0, sfba_error_final = 0;
 
+  // Config::poseOptimThresh():2
   pose_optimizer::optimizeLevenbergMarquardt3rd(
       Config::poseOptimThresh(), 12, false,
       new_frame_, sfba_thresh, sfba_error_init, sfba_error_final, sfba_n_edges_final);
@@ -284,7 +292,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   /*----------------------------------------STEP3: 选择关键帧 ----------------------------------------*/
   // select keyframe
 
-  core_kfs_.insert(new_frame_); // 加入到core_kfs_中用来localBA(在HSO这里似乎没用到)
+  core_kfs_.insert(new_frame_); // 加入到core_kfs_中用来localBA(在HSO这里似乎没用到,因为HSO使用的是共视图LocalMap_)
 
   // 根据优化后的内点数量来判断跟踪质量
   setTrackingQuality(sfba_n_edges_final);
@@ -294,6 +302,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
     return RESULT_FAILURE;
   }
 
+  //* 通过位姿变换到当前帧, 计算深度
   double depth_mean, depth_min;
   // 获取当前帧特征在相机坐标系下对应的 中值深度 和 最小深度
   frame_utils::getSceneDepth(*new_frame_, depth_mean, depth_min);
@@ -301,13 +310,14 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
   // 获取当前帧特征在相机坐标系下对应的 中值深度模长
   frame_utils::getSceneDistance(*new_frame_, distance_mean);
 
-  // 初始化成功后的第一帧（系统第三帧）不能设置为关键帧。因为：前两帧已经是关键帧了，防止第三帧也是关键帧导致关键帧过密
+  // 初始化成功后的第一帧（系统第三帧）设置为关键帧，因为初始化成功后  afterInit_ = true
   if (!needNewKf(distance_mean, sfba_n_edges_final) && !afterInit_) {
     createCovisibilityGraph(new_frame_, Config::coreNKfs(), false);
 
     // m_photomatric_calib->addFrame(new_frame_, pc_step);
     depth_filter_->addFrame(new_frame_);
     regular_counter_++;
+    // 使用匀速运动模型
     motionModel_ = new_frame_->T_f_w_ * last_frame_->T_f_w_.inverse();
 
     return RESULT_NO_KEYFRAME;
@@ -328,23 +338,20 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
 
   map_.point_candidates_.addCandidatePointToFrame(new_frame_);
 
+  // Config::coreNKfs() = 7
   createCovisibilityGraph(new_frame_, Config::coreNKfs(), true);
 
   /*----------------------------------------STEP4: 局部BA优化 ----------------------------------------*/
   // bundle adjustment
+  //Config::lobaNumIter() = 10 : 局部BA优化的迭代次数
   if (Config::lobaNumIter() > 0) {
     HSO_START_TIMER("local_ba");
 
     size_t loba_n_erredges_init, loba_n_erredges_fin;
     double loba_err_init, loba_err_fin;
 
-    ba::LocalBundleAdjustment(new_frame_.get(),
-                              &LocalMap_,
-                              &map_,
-                              loba_n_erredges_init,
-                              loba_n_erredges_fin,
-                              loba_err_init,
-                              loba_err_fin);
+    ba::LocalBundleAdjustment(new_frame_.get(), &LocalMap_, &map_,
+                              loba_n_erredges_init, loba_n_erredges_fin, loba_err_init, loba_err_fin);
 
     HSO_STOP_TIMER("local_ba");
     HSO_LOG4(loba_n_erredges_init, loba_n_erredges_fin, loba_err_init, loba_err_fin);
@@ -360,22 +367,20 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
 
   for (auto &kf: overlap_kfs_) kf.first->setKeyPoints();
 
-  if (sfba_n_edges_final <= 70)
-    depth_filter_->addKeyframe(new_frame_, distance_mean, 0.5 * depth_min, 100);  // robust
-  else
+  //[ ***step 9*** ] 关键帧加入到深度滤波线程, 会重新提取特征点, 进行计算深度直到收敛
+  // sfba_n_edges_final： 特征对齐后，对位姿优化后，得到的内点数目
+  if (sfba_n_edges_final <= 70) {
+    depth_filter_->addKeyframe(new_frame_, distance_mean, 0.5 * depth_min, 100);
+  } // robust
+  else {
     depth_filter_->addKeyframe(new_frame_, distance_mean, 0.5 * depth_min, 200);
+  }
 
-
-
-
-
-
-
-
-
+  //[ ***step 10*** ] 增加到关键帧中
   // add keyframe to map
   map_.addKeyframe(new_frame_);
 
+  // 更新恒速运动模型
   motionModel_ = new_frame_->T_f_w_ * last_frame_->T_f_w_.inverse();
 
   return RESULT_IS_KEYFRAME;
@@ -383,7 +388,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame() {
 
 FrameHandlerMono::UpdateResult FrameHandlerMono::relocalizeFrame(const SE3 &T_cur_ref, FramePtr ref_keyframe) {
   HSO_WARN_STREAM_THROTTLE(1.0, "Relocalizing frame");
-  if (ref_keyframe == nullptr) {
+  if (ref_keyframe == NULL) {
     HSO_INFO_STREAM("No reference keyframe.");
     return RESULT_FAILURE;
   }
@@ -462,6 +467,9 @@ bool FrameHandlerMono::needNewKf(const double &scene_depth_mean, const size_t &n
   //     if(regular_counter_ < nLockFrame) return false;
   // }
 
+  // n_mean_converge_frame * 0.8 >= 3，不返回false
+  // n_mean_converge_frame * 0.8 < 3，不返回false
+  // 这一行代码多余？
   if (regular_counter_ < std::min(3, int(n_mean_converge_frame * 0.8))) return false;
 
   const FramePtr last_kf = map_.lastKeyframe();
@@ -501,8 +509,6 @@ bool FrameHandlerMono::needNewKf(const double &scene_depth_mean, const size_t &n
   // optical_flow_nt = sqrtf(optical_flow_nt);
 
 
-
-
   const int defult_resolution = 752 + 480;
   const float setting_maxShiftWeightT = 0.04 * defult_resolution;
   // const float setting_maxShiftWeightR = 0.01f*defult_resolution;
@@ -534,7 +540,7 @@ bool FrameHandlerMono::kfOverView() {
   for (set<Frame *>::iterator ite = LocalMap_.begin(); ite != LocalMap_.end(); ++ite) {
     size_t nPoints = 0;
     for (auto &keypoint: (*ite)->key_pts_) {
-      if (keypoint == nullptr) continue;
+      if (keypoint == NULL) continue;
 
       if (new_frame_->isVisible(keypoint->point->pos_))
         nPoints++;
@@ -574,9 +580,6 @@ void FrameHandlerMono::createCovisibilityGraph(FramePtr currentFrame, size_t n_c
       KFcounter[(*ite)->frame]++;
     }
   }
-
-
-
 
 
   // This should not happen
@@ -626,7 +629,9 @@ void FrameHandlerMono::createCovisibilityGraph(FramePtr currentFrame, size_t n_c
     LocalMap_.clear();
 
     size_t n = min(n_closest, vPairs.size());
-    std::for_each(vPairs.begin(), vPairs.begin() + n, [&](pair<int, Frame *> &i) { LocalMap_.insert(i.second); });
+    std::for_each(vPairs.begin(), vPairs.begin() + n, [&](pair<int, Frame *> &i) {
+      LocalMap_.insert(i.second);
+    });
 
     FramePtr LastKF = map_.lastKeyframe();
     if (LocalMap_.find(LastKF.get()) == LocalMap_.end())

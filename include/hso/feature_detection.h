@@ -264,7 +264,7 @@ class FeatureExtractor {
 
   FeatureExtractor(const int width, const int height, const int cellSize, const int levels, bool isInit = false);
 
-  void detect(Frame *frame, const float initThresh, const float minThresh, Features &fts, Frame *last_frame = nullptr);
+  void detect(Frame *frame, const float initThresh, const float minThresh, Features &fts, Frame *last_frame = NULL);
 
   void setGridOccpuancy(const Vector2d &px, Feature *occurFeature);
 
@@ -322,7 +322,7 @@ class FeatureExtractor {
   Vector2d epi_hole;
 
   Frame *frame_; //当前帧
-  Frame *m_last_frame = nullptr; //上一帧
+  Frame *m_last_frame = NULL; //上一帧
 
   // All Features including existing and detected
   std::vector<KeyPoint> allFeturesToDistribute_;

@@ -192,8 +192,7 @@ void optimizeGaussNewton(
 
 void optimizeLevenbergMarquardt2nd(
     const double reproj_thresh, const size_t n_iter, const bool verbose,
-    FramePtr &frame, double &estimated_scale, double &error_init, double &error_final,
-    size_t &num_obs) {
+    FramePtr &frame, double &estimated_scale, double &error_init, double &error_final, size_t &num_obs) {
   double chi2(0.0), rho = 0, mu = 0.01, nu = 2.0;
   bool stop = false;
   int n_trials = 0;
@@ -209,7 +208,7 @@ void optimizeLevenbergMarquardt2nd(
   errors.reserve(frame->fts_.size());
   for (auto it = frame->fts_.begin(); it != frame->fts_.end(); ++it) {
     // if((*it)->point == NULL) continue;
-    assert((*it)->point != nullptr);
+    assert((*it)->point != NULL);
 
     Vector2d e = hso::project2d((*it)->f) - hso::project2d(frame->T_f_w_ * (*it)->point->pos_);
     e *= 1.0 / (1 << (*it)->level);

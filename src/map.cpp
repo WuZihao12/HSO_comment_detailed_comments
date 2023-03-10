@@ -91,7 +91,15 @@ bool Map::safeDeleteFrameID(int id) {
   HSO_ERROR_STREAM("Tried to delete Keyframe in map which was not there.");
   return false;
 }
-
+/********************************
+ * @ function: 删除point和feature之间的引用关系
+ *
+ * @ param:   frame   要删除的关键帧
+ *            ftr     frame与point之间的特征点
+ *
+ *
+ * @ note:  point与frame是通过ftr连接的
+ *******************************/
 void Map::removePtFrameRef(Frame *frame, Feature *ftr) {
   if (ftr->point == NULL)
     return; // mappoint may have been deleted in a previous ref. removal
@@ -102,6 +110,7 @@ void Map::removePtFrameRef(Frame *frame, Feature *ftr) {
     safeDeletePoint(pt);
     return;
   }
+  //[***step 3***] 切断point与feature之间的联系
   pt->deleteFrameRef(frame);  // Remove reference from map_point
   frame->removeKeyPoint(ftr); // Check if mp was keyMp in keyframe
 }
@@ -175,9 +184,9 @@ void Map::getCloseKeyframes(const FramePtr &frame, std::list<std::pair<FramePtr,
   for (const auto &kf : keyframes_) {
     // check if kf has overlaping field of view with frame, use therefore KeyPoints
     for (const auto &keypoint : kf->key_pts_) {
-      if (keypoint == nullptr) continue;
+      if (keypoint == NULL) continue;
 
-      assert(keypoint->point != nullptr);
+      assert(keypoint->point != NULL);
       // 判断frame与各个关键帧是否有重叠
       if (frame->isVisible(keypoint->point->pos_)) {
 
@@ -194,7 +203,7 @@ FramePtr Map::getClosestKeyframe(const FramePtr &frame) const {
   list<pair<FramePtr, double> > close_kfs;
   getCloseKeyframes(frame, close_kfs);
   if (close_kfs.empty()) {
-    return nullptr;
+    return NULL;
   }
 
   // Sort KFs with overlap according to their closeness
@@ -343,10 +352,7 @@ void MapPointCandidates::changeCandidatePosition(Frame *frame) {
     Point *point = it->first;
     Feature *ft = it->second;
 
-    assert(point != NULL &&
-        point->type_ == Point::TYPE_CANDIDATE &&
-        point->obs_.size() == 1 &&
-        point->vPoint_ == NULL);
+    assert(point != NULL && point->type_ == Point::TYPE_CANDIDATE && point->obs_.size() == 1 && point->vPoint_ == NULL);
 
     if (ft->frame->id_ == frame->id_)
       point->pos_ = frame->T_f_w_.inverse() * (ft->f * (1.0 / point->idist_));
@@ -398,7 +404,7 @@ void MapPointCandidates::deleteCandidate(PointCandidate &c) {
   // therefore, we can't delete it right now.
 
   delete c.second;
-  c.second = nullptr;
+  c.second = NULL;
   // for(auto it = c.second.begin(); it != c.second.end(); ++it)
   // {
   //   delete *it;

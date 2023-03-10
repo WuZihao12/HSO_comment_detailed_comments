@@ -341,6 +341,7 @@ bool Matcher::findMatchDirect(const Point &pt, Frame &cur_frame, Vector2d &px_cu
 
   float patchNCC[patch_size_ * patch_size_];
   bool alignResult;
+  //如果特征是边缘型，那么搜索方向只需要往一个方向进行就行（因为边缘有一个方向上移动时光度值变化较小，易找匹配）
   if (ref_ftr_->type == Feature::EDGELET) {
     Vector2d dir_cur(A_cur_ref_ * ref_ftr_->grad);
     dir_cur.normalize();
@@ -352,9 +353,10 @@ bool Matcher::findMatchDirect(const Point &pt, Frame &cur_frame, Vector2d &px_cu
     if (alignResult)
       alignResult = checkNormal(cur_frame, search_level_, px_scaled, dir_cur, Config::edgeLetCosAngle());
   } else {
-    alignResult = feature_alignment::align2D(
-        cur_frame.img_pyr_[search_level_], patch_with_border_f_,
-        patch_f_, options_.align_max_iter, px_scaled, false, patchNCC);
+    //patch是参考关键帧中的像素块。在cur中搜索的像素块都认为是正方形
+    // options_.align_max_iter 为 10
+    alignResult = feature_alignment::align2D(cur_frame.img_pyr_[search_level_], patch_with_border_f_,
+                                             patch_f_, options_.align_max_iter, px_scaled, false, patchNCC);
   }
 
   if (alignResult)

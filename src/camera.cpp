@@ -68,6 +68,7 @@ PinholeCamera::PinholeCamera(double width, double height,
 PinholeCamera::~PinholeCamera() {
 }
 
+//cam2world这个名起的,,,误会, 实际就是像素坐标到归一化坐标
 Vector3d PinholeCamera::cam2world(const double &u, const double &v) const {
   Vector3d xyz;
   if (!distortion_) {
@@ -87,6 +88,7 @@ Vector3d PinholeCamera::cam2world(const double &u, const double &v) const {
   return xyz.normalized();
 }
 
+//cam2world这个名起的,,,误会, 实际就是像素坐标到归一化坐标
 Vector3d PinholeCamera::cam2world(const Vector2d &uv) const {
   return cam2world(uv[0], uv[1]);
 }

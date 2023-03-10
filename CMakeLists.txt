@@ -53,7 +53,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -
 # Add plain cmake packages 
 find_package(OpenCV 4.0)
 if (NOT OpenCV_FOUND)
-    find_package(OpenCV 3.3)
+    find_package(OpenCV 3.3.1 REQUIRED)
     if (NOT OpenCV_FOUND)
         message(FATAL_ERROR "OpenCV > 3.0 not found.")
     endif ()

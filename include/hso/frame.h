@@ -94,6 +94,7 @@ class Frame : boost::noncopyable {
   bool is_keyframe_;
 
   // Temporary pointer to the g2o node object of the keyframe.
+  // 指向关键帧的 g2o 节点对象的临时指针
   g2oFrameSE3 *v_kf_;
 
   //!< Timestamp of last publishing.

@@ -124,7 +124,7 @@ public:
     double idist_; // 地图点模长的倒数
     Feature* hostFeature_; // 地图点的宿主特征，即最先观测到该地图点的2D特征（宿主特征也就相当于最先于该地图点相对应的2D特征）
     VertexSBAPointID* vPoint_;
-    size_t nBA_;
+    size_t nBA_; // 用于统计该地图点被 localBA 优化的次数
 
     //Viewer
     float color_ = 128;
